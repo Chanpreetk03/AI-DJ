@@ -10,6 +10,12 @@ export type RoomState = {
   energy: number;
   coherence: number;
   activeClients: number;
+  motionEnergy: number;
+  audioEnergy: number;
+  onsetDensity: number;
+  energyTrend: number;
+  volatility: number;
+  confidence: number;
 };
 
 export type MusicParams = {

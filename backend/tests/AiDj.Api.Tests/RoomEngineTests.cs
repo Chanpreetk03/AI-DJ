@@ -33,6 +33,35 @@ public sealed class RoomEngineTests
         Assert.Equal(1, state.ActiveClients);
     }
 
+    [Fact]
+    public void Aggregator_exposes_musical_dimensions_for_the_dj()
+    {
+        var aggregator = new RoomAggregator();
+        aggregator.Ingest("phone-1", new VibeVector(0.81, 0.16, 0.64, 3, 1_000), 1_000);
+
+        var state = aggregator.GetState(1_000);
+
+        Assert.InRange(state.MotionEnergy, 0.89, 0.91);
+        Assert.InRange(state.AudioEnergy, 0.79, 0.81);
+        Assert.Equal(0.75, state.OnsetDensity);
+        Assert.Equal(0, state.EnergyTrend);
+        Assert.Equal(0, state.Volatility);
+        Assert.InRange(state.Confidence, 0.69, 0.71);
+    }
+
+    [Fact]
+    public void Aggregator_reports_direction_when_room_energy_changes()
+    {
+        var aggregator = new RoomAggregator();
+        aggregator.Ingest("phone-1", Vibe(0.2), 1_000);
+        aggregator.GetState(1_000);
+
+        aggregator.Ingest("phone-1", Vibe(0.8), 2_000);
+        var state = aggregator.GetState(2_000);
+
+        Assert.True(state.EnergyTrend > 0);
+    }
+
     [Theory]
     [InlineData(0.0, 1, 92)]
     [InlineData(0.3, 2, 106.4)]

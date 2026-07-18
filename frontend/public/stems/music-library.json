@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "tracks": [
+    {
+      "id": "the-way-it-is",
+      "title": "The Way It Is",
+      "kind": "full",
+      "url": "/stems/the_way_it_is.wav",
+      "bpm": 96,
+      "key": "D minor",
+      "phraseBars": 8,
+      "energy": 0.38,
+      "dynamics": 0.42,
+      "brightness": 0.38,
+      "tags": ["melodic", "warm", "open-space"],
+      "license": "See LICENSE.md"
+    },
+    {
+      "id": "glitch-stairs",
+      "title": "Glitch Stairs",
+      "kind": "stem-pack",
+      "bpm": 120,
+      "key": "D minor",
+      "phraseBars": 8,
+      "energy": 0.68,
+      "dynamics": 0.72,
+      "brightness": 0.74,
+      "tags": ["rhythmic", "electronic", "melodic"],
+      "license": "See LICENSE.md",
+      "stems": {
+        "drums": ["/stems/glitch-stairs/StemDrums.ogg"],
+        "bass": ["/stems/glitch-stairs/StemBass.ogg"],
+        "harmony": [
+          "/stems/glitch-stairs/Chords1.ogg",
+          "/stems/glitch-stairs/Chords2.ogg"
+        ],
+        "flute": [
+          "/stems/glitch-stairs/StemFlute.ogg",
+          "/stems/glitch-stairs/Flute1.ogg",
+          "/stems/glitch-stairs/Flute2.ogg"
+        ],
+        "melody": [
+          "/stems/glitch-stairs/StemMelody.ogg",
+          "/stems/glitch-stairs/Melody1.ogg",
+          "/stems/glitch-stairs/Melody2.ogg",
+          "/stems/glitch-stairs/MelodyBridge.ogg"
+        ]
+      }
+    },
+    {
+      "id": "rhythm-factory",
+      "title": "Rhythm Factory",
+      "kind": "full",
+      "url": "/stems/rhythm_factory.wav",
+      "bpm": 128,
+      "key": "D minor",
+      "phraseBars": 8,
+      "energy": 0.84,
+      "dynamics": 0.78,
+      "brightness": 0.69,
+      "tags": ["rhythmic", "high-energy", "electronic"],
+      "license": "UNVERIFIED — see LICENSE.md before publishing"
+    }
+  ]
+}
