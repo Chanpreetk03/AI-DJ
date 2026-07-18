@@ -1,5 +1,5 @@
 import { createConnection } from "./connection";
-import { RealMusicDecks, type MusicSelection } from "./realMusic";
+import { RealMusicDecks } from "./realMusic";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
 import "./styles.css";
@@ -12,7 +12,6 @@ const tempo = document.querySelector<HTMLElement>("#tempo")!;
 const layers = document.querySelector<HTMLElement>("#layers")!;
 const participantCount = document.querySelector<HTMLElement>("#participant-count")!;
 const startAudio = document.querySelector<HTMLButtonElement>("#start-audio")!;
-const musicStyle = document.querySelector<HTMLSelectElement>("#music-style")!;
 const inviteButton = document.querySelector<HTMLButtonElement>("#invite-button")!;
 const inviteModal = document.querySelector<HTMLElement>("#invite-modal")!;
 const closeInvite = document.querySelector<HTMLButtonElement>("#close-invite")!;
@@ -20,10 +19,9 @@ const inviteQr = document.querySelector<HTMLCanvasElement>("#invite-qr")!;
 const inviteUrl = document.querySelector<HTMLElement>("#invite-url")!;
 const copyInvite = document.querySelector<HTMLButtonElement>("#copy-invite")!;
 const connection = createConnection();
-const nowPlaying = document.querySelector<HTMLElement>("#now-playing")!;
 const djDecision = document.querySelector<HTMLElement>("#dj-decision")!;
 const stemPack = new RealMusicDecks(
-  title => nowPlaying.textContent = title,
+  () => undefined,
   message => djDecision.textContent = message,
 );
 const participantUrl = new URL("/participant.html", window.location.origin).toString();
@@ -42,14 +40,6 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
   targetEnergy = state.energy;
   stemPack.setRoomState(state);
 });
-
-function applyMusicSelection(): void {
-  stemPack.setSelection(musicStyle.value as MusicSelection);
-  djDecision.textContent = `Host requested ${musicStyle.selectedOptions[0].text}. AI will transition at the next safe phrase.`;
-}
-
-musicStyle.addEventListener("change", applyMusicSelection);
-musicStyle.addEventListener("input", applyMusicSelection);
 
 function animateSpeaker(): void {
   displayedEnergy += (targetEnergy - displayedEnergy) * 0.08;
