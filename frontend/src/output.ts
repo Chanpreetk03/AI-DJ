@@ -107,7 +107,7 @@ async function connect(): Promise<void> {
   try {
     await connection.start();
     await connection.invoke("Join", "output");
-    status.textContent = "Connected â€” waiting for the room";
+    status.textContent = "Connected - waiting for the room";
   } catch (error) {
     console.error(error);
     status.textContent = "Output server unavailable";

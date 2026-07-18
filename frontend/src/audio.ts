@@ -176,26 +176,67 @@ export class DefaultStemPack {
       this.playPercussion(time, "snare");
     }
 
+    if (this.parameters.layerCount >= 3 || this.parameters.noteDensity > 0.55) {
+      this.playHat(time + (60 / Math.max(this.parameters.tempo, 40)) / 2);
+    }
+
     if (this.parameters.layerCount >= 2) {
-      this.playBass(time, beatNumber % 4 === 0 ? 110 : 146.83);
+      this.playBass(time, [98, 130.81, 146.83, 130.81][beatNumber % 4]);
     }
 
     if (this.parameters.layerCount >= 3 && beatNumber % 2 === 0) {
-      this.playMelody(time, [220, 261.63, 293.66, 329.63][beatNumber % 4]);
+      this.playMelody(time, [196, 220, 261.63, 293.66, 329.63, 293.66, 261.63, 220][beatNumber % 8]);
     }
   }
 
   private playPercussion(time: number, kind: "kick" | "snare"): void {
+    if (kind === "kick") {
+      this.playKick(time);
+      return;
+    }
+
     const source = this.context.createBufferSource();
     const gain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
     source.buffer = this.noiseBuffer;
-    source.connect(gain).connect(this.layerGains.get("percussion")!);
-    const duration = kind === "kick" ? 0.18 : 0.12;
-    const volume = kind === "kick" ? 0.8 : 0.34;
-    gain.gain.setValueAtTime(volume, time);
-    gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(1_800, time);
+    filter.Q.setValueAtTime(0.85, time);
+    source.connect(filter).connect(gain).connect(this.layerGains.get("percussion")!);
+    gain.gain.setValueAtTime(0.001, time);
+    gain.gain.exponentialRampToValueAtTime(0.22, time + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.11);
     source.start(time);
-    source.stop(time + duration);
+    source.stop(time + 0.13);
+  }
+
+  private playKick(time: number): void {
+    const oscillator = this.context.createOscillator();
+    const gain = this.context.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(120, time);
+    oscillator.frequency.exponentialRampToValueAtTime(48, time + 0.16);
+    oscillator.connect(gain).connect(this.layerGains.get("percussion")!);
+    gain.gain.setValueAtTime(0.001, time);
+    gain.gain.exponentialRampToValueAtTime(0.72, time + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.22);
+    oscillator.start(time);
+    oscillator.stop(time + 0.24);
+  }
+
+  private playHat(time: number): void {
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    source.buffer = this.noiseBuffer;
+    filter.type = "highpass";
+    filter.frequency.setValueAtTime(5_500, time);
+    source.connect(filter).connect(gain).connect(this.layerGains.get("percussion")!);
+    gain.gain.setValueAtTime(0.001, time);
+    gain.gain.exponentialRampToValueAtTime(0.11 + this.parameters.noteDensity * 0.06, time + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.001, time + 0.055);
+    source.start(time);
+    source.stop(time + 0.07);
   }
 
   private playBass(time: number, frequency: number): void {
