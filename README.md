@@ -24,6 +24,14 @@ Open the Vite URL, then use one tab for `participant.html` and another for `outp
 
 The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
 
+Validate the server-owned room aggregation and music mapping logic:
+
+```powershell
+dotnet run --project backend.Tests/AiDj.Api.Tests.csproj --no-restore -p:BuildProjectReferences=false
+```
+
+The check is dependency-free and exits with a non-zero status if a deterministic domain behavior regresses.
+
 ## Real phone control loop
 
 The phone demo needs one public HTTPS URL for the Vite frontend. Vite proxies SignalR traffic from `/hubs/dj` to the local ASP.NET backend, so a second public backend tunnel is not required.

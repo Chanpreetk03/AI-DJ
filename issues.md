@@ -99,13 +99,13 @@ Implement the server-owned path from incoming Vibe Vectors to Room State and Mus
 
 ## Acceptance criteria
 
-- [ ] Server accepts Vibe Vectors from SignalR clients.
-- [ ] RoomAggregator computes server-owned Room State with `energy`, `coherence`, and `activeClients`.
-- [ ] Stale clients decay or stop contributing after the timeout window.
-- [ ] VibeToMusicMapper converts Room State into Music Parameters.
-- [ ] Music Parameters include at least `tempo`, `filterCutoff`, `noteDensity`, and `layerCount`.
-- [ ] Output clients receive Music Parameters from the server.
-- [ ] Aggregator and mapper logic have deterministic tests.
+- [x] Server accepts Vibe Vectors from SignalR clients.
+- [x] RoomAggregator computes server-owned Room State with `energy`, `coherence`, and `activeClients`.
+- [x] Stale clients decay or stop contributing after the timeout window.
+- [x] VibeToMusicMapper converts Room State into Music Parameters.
+- [x] Music Parameters include at least `tempo`, `filterCutoff`, `noteDensity`, and `layerCount`.
+- [x] Output clients receive Music Parameters from the server.
+- [x] Aggregator and mapper logic have deterministic tests.
 
 ## Blocked by
 
