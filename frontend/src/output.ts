@@ -1,5 +1,5 @@
 import { createConnection } from "./connection";
-import { DefaultStemPack, type MusicStyle } from "./audio";
+import { RealMusicDecks, type MusicStyle } from "./realMusic";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
 import "./styles.css";
@@ -20,7 +20,10 @@ const inviteQr = document.querySelector<HTMLCanvasElement>("#invite-qr")!;
 const inviteUrl = document.querySelector<HTMLElement>("#invite-url")!;
 const copyInvite = document.querySelector<HTMLButtonElement>("#copy-invite")!;
 const connection = createConnection();
-const stemPack = new DefaultStemPack();
+const nowPlaying = document.querySelector<HTMLElement>("#now-playing")!;
+const stemPack = new RealMusicDecks(title => {
+  nowPlaying.textContent = title;
+});
 const participantUrl = new URL("/participant.html", window.location.origin).toString();
 let targetEnergy = 0;
 let displayedEnergy = 0;
@@ -105,7 +108,7 @@ async function startAudioOutput(): Promise<void> {
     await Promise.race([
       stemPack.start(),
       new Promise<never>((_, reject) => {
-        timeoutId = window.setTimeout(() => reject(new Error("Audio startup timed out. Check the browser output device.")), 4_000);
+        timeoutId = window.setTimeout(() => reject(new Error("Audio startup timed out. Check the browser output device.")), 30_000);
       }),
     ]);
     startAudio.textContent = "Audio playing";
