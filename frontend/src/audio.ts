@@ -6,16 +6,19 @@ const layerOrder: AudioLayer[] = ["percussion", "bass", "atmosphere", "melody"];
 const chordProgression = [
   [220, 261.63, 329.63],
   [174.61, 220, 261.63],
+  [130.81, 164.81, 196],
   [196, 246.94, 293.66],
-  [164.81, 196, 246.94],
 ];
-const bassPattern = [110, 110, 130.81, 146.83, 98, 98, 130.81, 146.83];
-const leadPhrase = [329.63, 392, 440, 392, 493.88, 440, 392, 329.63, 293.66, 329.63, 392, 440, 392, 329.63, 293.66, 261.63];
+const bassPattern = [110, 110, 110, 130.81, 87.31, 87.31, 98, 130.81];
+const leadPhrase = [329.63, 392, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63, 392, 440, 493.88, 440, 392, 329.63, 293.66];
 
 export class DefaultStemPack {
   private context!: AudioContext;
   private masterGain!: GainNode;
   private filter!: BiquadFilterNode;
+  private compressor!: DynamicsCompressorNode;
+  private delay!: DelayNode;
+  private delayGain!: GainNode;
   private readonly layerGains = new Map<AudioLayer, GainNode>();
   private noiseBuffer!: AudioBuffer;
   private atmosphereOscillators: OscillatorNode[] = [];
@@ -44,7 +47,6 @@ export class DefaultStemPack {
       throw new Error(`Audio context did not start: ${this.context.state}`);
     }
 
-    this.playStartupTone();
     this.startAtmosphere();
     this.applyParametersAt(this.context.currentTime);
     this.nextBeatAt = this.context.currentTime + 0.05;
@@ -81,8 +83,20 @@ export class DefaultStemPack {
     this.filter.type = "lowpass";
     this.filter.Q.value = 0.7;
     this.filter.connect(this.masterGain);
-    this.masterGain.gain.value = 0.26;
-    this.masterGain.connect(this.context.destination);
+    this.masterGain.gain.value = 0.22;
+    this.compressor = this.context.createDynamicsCompressor();
+    this.compressor.threshold.value = -18;
+    this.compressor.knee.value = 14;
+    this.compressor.ratio.value = 4;
+    this.compressor.attack.value = 0.008;
+    this.compressor.release.value = 0.16;
+    this.delay = this.context.createDelay(0.5);
+    this.delay.delayTime.value = 0.23;
+    this.delayGain = this.context.createGain();
+    this.delayGain.gain.value = 0.12;
+    this.masterGain.connect(this.compressor);
+    this.masterGain.connect(this.delay).connect(this.delayGain).connect(this.compressor);
+    this.compressor.connect(this.context.destination);
     this.noiseBuffer = this.createNoiseBuffer();
 
     layerOrder.forEach((layer, index) => {
@@ -200,7 +214,7 @@ export class DefaultStemPack {
     }
 
     if (this.parameters.layerCount >= 2 || this.parameters.noteDensity > 0.35) {
-      this.playHat(time + secondsPerBeat / 2);
+      this.playHat(time + secondsPerBeat / 2 + (step % 2 === 0 ? secondsPerBeat * 0.025 : 0));
     }
 
     if (this.parameters.layerCount >= 2) {
@@ -262,7 +276,7 @@ export class DefaultStemPack {
   }
 
   private playBass(time: number, frequency: number, volume: number): void {
-    this.playTone(time, frequency, 0.34, "bass", "sawtooth", volume);
+    this.playTone(time, frequency, 0.34, "bass", "triangle", volume);
   }
 
   private playChord(time: number, frequencies: number[], duration: number): void {
@@ -272,7 +286,7 @@ export class DefaultStemPack {
   }
 
   private playLead(time: number, frequency: number, duration: number): void {
-    this.playTone(time, frequency, duration, "melody", "square", 0.09 + this.parameters.noteDensity * 0.07);
+    this.playTone(time, frequency, duration, "melody", "triangle", 0.07 + this.parameters.noteDensity * 0.06);
   }
 
   private playTone(
@@ -288,9 +302,9 @@ export class DefaultStemPack {
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, time);
     const filter = this.context.createBiquadFilter();
-    filter.type = layer === "bass" ? "lowpass" : "bandpass";
-    filter.frequency.setValueAtTime(layer === "bass" ? 650 : 1_600 + this.parameters.filterCutoff * 2_400, time);
-    filter.Q.setValueAtTime(layer === "bass" ? 0.5 : 0.8, time);
+    filter.type = layer === "bass" ? "lowpass" : "lowpass";
+    filter.frequency.setValueAtTime(layer === "bass" ? 480 : 1_100 + this.parameters.filterCutoff * 2_200, time);
+    filter.Q.setValueAtTime(layer === "bass" ? 0.6 : 0.45, time);
     oscillator.connect(filter).connect(gain).connect(this.layerGains.get(layer)!);
     gain.gain.setValueAtTime(0.001, time);
     gain.gain.exponentialRampToValueAtTime(volume, time + 0.015);
