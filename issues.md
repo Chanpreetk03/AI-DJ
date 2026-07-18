@@ -300,11 +300,11 @@ Move fallback control into a separate clearly labeled Booth Device page so the o
 
 ### Acceptance criteria
 
-- [ ] `booth.html` connects as a labeled Booth Device Mode client.
-- [ ] Operator can select quiet, warming, active, peak, and cooldown states.
-- [ ] Operator can manually adjust energy for fine-grained rehearsal.
-- [ ] Booth input updates the same Room State and Music Parameters as phone input.
-- [ ] The page clearly warns that it is fallback mode, not Audience Phone Mode.
+- [x] `booth.html` connects as a labeled Booth Device Mode client.
+- [x] Operator can select quiet, warming, active, peak, and cooldown states.
+- [x] Operator can manually adjust energy for fine-grained rehearsal.
+- [x] Booth input updates the same Room State and Music Parameters as phone input.
+- [x] The page clearly warns that it is fallback mode, not Audience Phone Mode.
 
 ### Blocked by
 

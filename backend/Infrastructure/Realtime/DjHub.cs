@@ -8,9 +8,12 @@ public sealed class DjHub(RoomEngine roomEngine) : Hub
 {
     public async Task Join(string role)
     {
-        var normalizedRole = role.Equals("output", StringComparison.OrdinalIgnoreCase)
-            ? "output"
-            : "participant";
+        var normalizedRole = role.ToLowerInvariant() switch
+        {
+            "output" => "output",
+            "booth" => "booth",
+            _ => "participant"
+        };
 
         await Groups.AddToGroupAsync(Context.ConnectionId, normalizedRole);
         await Clients.Caller.SendAsync("Joined", new { role = normalizedRole, connectionId = Context.ConnectionId });

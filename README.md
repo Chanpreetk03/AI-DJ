@@ -20,7 +20,7 @@ npm run dev
 
 The frontend reads its backend URL from `frontend/.env`. Copy `frontend/.env.example` when setting up a new machine. For a phone demo, set `VITE_API_URL` to the HTTPS tunnel URL before starting Vite.
 
-Open the Vite URL, then use one tab for `participant.html` and another for `output.html`.
+Open the Vite URL, then use one tab for `participant.html`, `output.html`, or `booth.html`.
 
 The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
 
