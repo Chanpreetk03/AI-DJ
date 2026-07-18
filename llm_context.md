@@ -4,7 +4,7 @@ Read this first before coding.
 
 ## Project Summary
 
-AI-DJ is a hackathon-scale, crowd-reactive generative DJ system. Mobile browsers extract lightweight motion and microphone features, send them as JSON vibe vectors over WebSocket to a local laptop server, and the server maps the aggregate room state to procedural music parameters.
+AI-DJ is a hackathon-scale, crowd-reactive generative DJ system. Mobile browsers extract lightweight motion and microphone features, send them as JSON vibe vectors over SignalR to a local laptop server, and the server maps the aggregate room state to procedural music parameters.
 
 The key product promise is: crowd energy changes the music live, without uploading raw camera or microphone streams.
 
@@ -13,8 +13,8 @@ The key product promise is: crowd energy changes the music live, without uploadi
 - Architecture: edge feature extraction plus centralized aggregation and generation.
 - Network payload: small JSON vectors, not raw media.
 - Deployment: one laptop on local venue Wi-Fi.
-- Core transport: WebSocket.
-- Core audio: procedural synthesis, likely Tone.js or Web Audio.
+- Core transport: ASP.NET Core SignalR.
+- Core audio: procedural synthesis in a dedicated browser output tab, likely Tone.js or Web Audio.
 - Demo scope: reliable procedural music first, neural/generative flourishes only as stretch.
 
 ## Core Interfaces
@@ -45,7 +45,7 @@ type MusicParams = {
 Expected modules:
 
 - `VibeSensor`: browser camera/mic feature extraction.
-- `Transport`: WebSocket plumbing and client liveness.
+- `Transport`: SignalR hub plumbing and client liveness.
 - `RoomAggregator`: multi-client aggregation and stale decay.
 - `VibeToMusicMapper`: pure mapping from room state to music params.
 - `Synthesizer`: procedural audio output.
@@ -94,4 +94,4 @@ Mobile `getUserMedia` needs a secure context. `http://192.168.x.x` is usually no
 
 ## Suggested First Coding Prompt
 
-Implement the TypeScript project skeleton, shared domain types, `RoomAggregator`, `VibeToMusicMapper`, and unit tests for quiet, rising, peak, stale-client, and cooldown scenarios. Keep browser capture and audio output as later tasks.
+Implement the .NET server skeleton, TypeScript browser client/output skeleton, shared message contracts, `RoomAggregator`, `VibeToMusicMapper`, and unit tests for quiet, rising, peak, stale-client, and cooldown scenarios. Keep browser capture and audio output as later tasks.

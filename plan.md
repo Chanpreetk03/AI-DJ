@@ -12,16 +12,18 @@ Important source docs:
 
 ## Recommended Build Order
 
-### Phase 1: Project Skeleton
+The project has a 2-day hackathon window. Prioritize one real phone controlling a clean output loop before expanding to multi-phone polish.
 
-- Choose TypeScript project layout.
-- Add package manager metadata.
+### Phase 1: Tracer Bullet Skeleton
+
+- Choose ASP.NET Core + TypeScript project layout.
+- Add .NET and browser package metadata.
 - Add server, client, shared, and tests directories.
 - Define shared types:
   - `VibeVector`
   - `RoomState`
   - `MusicParams`
-  - WebSocket message types
+- SignalR message contracts
 - Add basic lint/test scripts.
 
 Suggested structure:
@@ -31,10 +33,10 @@ src/
   shared/
     types.ts
   server/
-    index.ts
-    transport/
-    aggregation/
-    mapping/
+    AiDj.Server/
+      Hubs/
+      Aggregation/
+      Mapping/
   client/
     index.html
     app.ts
@@ -45,9 +47,9 @@ src/
 tests/
 ```
 
-### Phase 2: Pure Core First
+### Phase 2: One-Phone Control Loop
 
-Build the testable logic before browser and audio integration.
+Build only enough pure logic to connect one real phone to audible output quickly, then deepen tests around the working loop.
 
 - Implement `RoomAggregator`.
 - Implement stale-client decay.
@@ -64,9 +66,9 @@ Deliverable: deterministic tests prove room state and mapped music params work w
 
 ### Phase 3: Transport
 
-- Implement WebSocket server using `ws`.
-- Accept `hello` messages with `clientId`.
-- Accept `vibe` messages and pass them to the aggregator.
+- Implement an ASP.NET Core SignalR hub.
+- Accept join messages with `clientId`.
+- Accept vibe messages and pass them to the aggregator.
 - Track client liveness and timeout callbacks.
 - Broadcast optional `roomState` messages.
 - Add an in-memory transport for integration tests.
@@ -86,21 +88,21 @@ Deliverable: synthetic clients can drive the server and produce changing room st
 
 Deliverable: one phone can connect and stream believable vibe vectors.
 
-### Phase 5: Synth Output
+### Phase 5: Stem-Based Output
 
 Prefer a dedicated browser output tab for the first implementation because Tone.js and Web Audio are easiest in-browser.
 
-- Create output page connected to the same WebSocket server.
-- Receive or poll mapped `MusicParams`.
-- Build a procedural loop with drums, bass, pad, and lead/noise layers.
+- Create output page connected to the same SignalR hub.
+- Receive mapped `MusicParams`.
+- Build playback around a small curated royalty-free stem pack.
 - Map:
-  - energy to tempo and layer count
+  - energy to layer count and filter openness
   - coherence to rhythmic tightness or pattern stability
-  - audio/onset energy to note density or filter movement
+  - audio/onset energy to stem intensity or filter movement
 - Quantize parameter changes to beats and bars.
 - Use ramps for audio parameter changes.
 
-Deliverable: synthetic room states audibly alter the music.
+Deliverable: real or synthetic room states audibly alter stem playback.
 
 ### Phase 6: End-to-End Integration
 
@@ -117,8 +119,8 @@ Deliverable: crowd movement controls a continuous live music output.
 ### Phase 7: Demo Hardening
 
 - Decide HTTPS strategy early:
-  - local trusted certificate with `mkcert`
   - tunnel with a public HTTPS URL
+  - local trusted certificate with `mkcert`
   - booth-device fallback
 - Prepare a QR code for the join URL.
 - Add a synthetic demo scenario for fallback.
@@ -133,7 +135,7 @@ Deliverable: repeatable live demo with a fallback path.
 1. Shared types and pure tests.
 2. Aggregator and mapper.
 3. Synthetic input path.
-4. WebSocket server.
+4. SignalR hub.
 5. Real mobile capture.
 6. Synth output.
 7. Multi-phone integration.

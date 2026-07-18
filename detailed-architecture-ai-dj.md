@@ -8,13 +8,12 @@ Everything runs on one laptop at the venue, on the venue's local wifi. No cloud 
 
 ```
                      ┌─────────────────────────────┐
-                     │   Laptop (Node.js server)    │
-                     │  - WebSocket server           │
+                     │ Laptop (ASP.NET Core server)  │
+                     │  - SignalR hub                │
                      │  - RoomAggregator              │
                      │  - VibeToMusicMapper            │
-                     │  - Synthesizer (Tone.js/headless│
-                     │    Chromium or Web Audio)       │
-                     │  → 3.5mm / USB out → venue PA   │
+                     │  - Serves browser output tab     │
+                     │  → stem output tab → venue PA    │
                      └───────────┬─────────────────┘
                                  │ local wifi (same router)
               ┌──────────────────┼──────────────────┐
@@ -36,7 +35,7 @@ Resolve this on day 1, not day 6 — it's the kind of thing that eats an afterno
 
 ## 2. Wire protocol
 
-Keep it JSON over one WebSocket per phone. No need for a binary protocol at this payload size (a vibe vector is a handful of floats).
+Keep it JSON-shaped messages over SignalR. No need for a binary protocol at this payload size (a vibe vector is a handful of floats).
 
 **Client → server**, sent ~5 times/second:
 ```json
@@ -63,7 +62,7 @@ The whole point is that the room *feels* heard. Work backward from what's percep
 |---|---|---|
 | Frame capture + diff (client) | ~30–50ms, sampled at ~10fps | No need to process every frame at 60fps — motion energy doesn't need that resolution |
 | Vibe vector emit interval | every ~200ms | Frequent enough to feel live, sparse enough to keep bandwidth trivial |
-| WebSocket transit (local wifi) | ~10–50ms | Same-router LAN, not internet — this is the one part cloud hosting would have made worse |
+| SignalR transit (local wifi) | ~10–50ms | Same-router LAN, not internet — this is the one part cloud hosting would have made worse |
 | `RoomAggregator.ingest` → `currentState` | <5ms | Pure arithmetic over a handful of clients |
 | `VibeToMusicMapper.map` | <1ms | Pure function, no I/O |
 | Synthesizer parameter application | **quantized, not instant** — see below | Musicality beats raw speed here |
@@ -101,15 +100,15 @@ The things most likely to actually break on demo day, and what to do about each:
 - **Phone browser tab gets backgrounded or the screen locks.** Mobile browsers throttle or fully suspend JS timers and camera frames in background tabs — this is probably the single biggest risk to this whole idea, more than any of the ML/audio work. Mitigate with the **Screen Wake Lock API** (`navigator.wakeLock.request('screen')`) to keep the screen on while joined, and put a visible on-screen instruction ("keep this tab open and screen on") right on the join page. Test this explicitly on both iOS Safari and Android Chrome — they throttle differently.
 - **A phone's wifi drops mid-set.** `Transport` should detect this via a timeout (no `vibe` message in, say, 2 seconds → treat as stale), and `RoomAggregator` should decay that client's contribution toward neutral rather than freezing on its last value — otherwise one dropped phone can "stick" the room's perceived energy.
 - **Camera/mic permission denied.** Handle gracefully client-side — fall back to mic-only (most phones will grant mic more readily than camera in a crowd setting) rather than failing the whole join.
-- **Server process crashes mid-set.** Since state lives entirely in memory (`RoomAggregator`, current `MusicParams`), a crash means silence and a restart. For a week-long hackathon this is an acceptable risk to *not* engineer around (no need for persistence/checkpointing) — just make sure the server auto-restarts (e.g. `nodemon`/`pm2` in production mode, not dev mode, on the day of the demo) and the `Synthesizer` re-enters `IDLE` cleanly rather than crashing again on empty state.
+- **Server process crashes mid-set.** Since state lives entirely in memory (`RoomAggregator`, current `MusicParams`), a crash means silence and a restart. For a week-long hackathon this is an acceptable risk to *not* engineer around (no need for persistence/checkpointing) — just make sure the server can be restarted quickly on demo day and the output tab re-enters `IDLE` cleanly rather than crashing again on empty state.
 - **Audio buffer underrun/glitch.** If using Web Audio directly, schedule parameter ramps (`AudioParam.linearRampToValueAtTime`) rather than setting values imperatively — this is both what makes the quantized-update approach in §3 sound smooth and what avoids audible clicks/pops from instantaneous value jumps.
 
 ## 6. Tech stack
 
-- **Client:** plain browser JS (or a tiny framework if you're faster in one) — `getUserMedia` for camera/mic, `<canvas>` for frame differencing, Web Audio `AnalyserNode` for RMS/onset. No build step needed; keep it a single static page you can iterate on fast.
-- **Transport:** `ws` (Node.js WebSocket library) — minimal, well-documented, no need for Socket.IO's extra abstraction for this message volume.
-- **Server logic:** plain Node.js/TypeScript for `RoomAggregator` and `VibeToMusicMapper` — no framework needed, these are just functions/classes per the module design doc.
-- **Synthesizer:** Tone.js, running either headless in Node via a minimal Web Audio shim, or — often simpler for a week-long build — in its own browser tab that the server pushes `MusicParams` to over the same WebSocket, with that tab's audio output routed to the venue PA via the laptop's audio interface. The second option means your "hard real-time audio" code gets to live in a browser where Tone.js is easiest to use, at the cost of one more WebSocket hop (still well within the timing budget in §3).
+- **Client:** TypeScript browser code — `getUserMedia` for camera/mic, `<canvas>` for frame differencing, Web Audio `AnalyserNode` for RMS/onset.
+- **Transport:** ASP.NET Core SignalR — useful hub semantics and reconnect behavior without custom socket plumbing.
+- **Server logic:** .NET classes for `RoomAggregator` and `VibeToMusicMapper`, kept pure and unit-testable.
+- **Synthesizer:** Tone.js or Web Audio in a dedicated browser output tab, playing a curated royalty-free stem pack with procedural effects. The server pushes `MusicParams` to that tab over SignalR, and the tab routes audio to the venue PA via the laptop's audio interface.
 
 ## 7. What this doesn't cover
 

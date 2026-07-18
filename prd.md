@@ -1,159 +1,121 @@
-# Product Requirements Document: AI-DJ
+# PRD: AI-DJ 2-Day MVP
 
-## Overview
+## Problem Statement
 
-AI-DJ is a crowd-reactive generative music system for a hackathon demo. Audience phones capture lightweight motion and audio features in the browser, stream those small "vibe vectors" to a local laptop server, and the server turns the aggregate room energy into live procedural music.
+Hackathon judges and audience participants need to understand, within seconds, that the room is controlling the music live. The team has only 2 days, so the MVP must prove the core promise with one real phone: Camera Sensing and Microphone Sensing produce Vibe Vectors, the server derives Room State and Music Parameters, and the output tab changes a musical loop without uploading Raw Media.
 
-The intended experience is simple and visible: people join from their phones, move or make noise, and the music audibly changes within a beat or two.
+The main risk is not raw server performance. The hard parts are mobile browser permissions, HTTPS access, SignalR wiring, reliable camera/microphone sensing, and making the audio output feel intentional rather than like a broken synth demo.
 
-## Goals
+## Solution
 
-- Let one or more phones contribute real-time crowd energy without installing an app.
-- Avoid streaming raw camera or microphone media off-device.
-- Generate one continuous audio output from the laptop to the venue speakers.
-- Make the reaction loop obvious enough for a live demo.
-- Keep the implementation realistic for a 1-week, 2-person hackathon.
+Build AI-DJ as a local hackathon system where an Audience Phone opens a secure browser page, grants camera and microphone access, computes Vibe Vectors on-device, and sends only those vectors to an ASP.NET Core SignalR server. The server owns Room State and Music Parameters, then broadcasts Music Parameters to a dedicated TypeScript output browser tab.
 
-## Non-Goals
+The output tab plays one polished Bundled Stem Pack in a Melodic Desi/Electronic Fusion direction. It uses Procedural Effects such as layer muting, filtering, intensity changes, and transitions to make the music respond to energy changes. Booth Device Mode and synthetic input remain fallback and testing paths, but the MVP is only successful if one real phone controls the output loop.
 
-- No full neural music generation as the core audio engine.
-- No raw video or audio streaming to the server.
-- No per-phone synchronized audio playback.
-- No durable accounts, database, analytics, or cloud deployment required for the MVP.
-- No precise choreography or gesture recognition in the initial version.
+## User Stories
 
-## Target Users
+1. As a hackathon judge, I want to scan or open a phone page and affect the music, so that I immediately understand the crowd-reactive concept.
+2. As an audience participant, I want to join from my mobile browser without installing an app, so that I can contribute quickly during a live demo.
+3. As an audience participant, I want the phone to ask for camera and microphone permissions clearly, so that I understand what sensing is being used.
+4. As an audience participant, I want Raw Media to stay on my device, so that I can participate without uploading camera frames or microphone audio.
+5. As an audience participant, I want visible connection feedback, so that I know my phone is contributing.
+6. As an audience participant, I want my motion to affect the music, so that the camera-based part of the promise is visible.
+7. As an audience participant, I want my sound or clapping to affect the music, so that the microphone-based part of the promise is audible.
+8. As the demo operator, I want one real phone to control the output loop, so that the core MVP is demoable even before multi-phone polish.
+9. As the demo operator, I want Booth Device Mode available, so that the demo can continue if participant phone setup fails.
+10. As the demo operator, I want synthetic input available, so that mapping and audio can be rehearsed without repeatedly dancing in front of a phone.
+11. As the demo operator, I want the system to use an HTTPS tunnel first, so that mobile camera and microphone permissions work quickly during the hackathon.
+12. As the demo operator, I want `mkcert` to remain a fallback or extension, so that local-network operation is possible if tunnel internet access is unreliable.
+13. As the demo operator, I want a dedicated output browser tab, so that browser audio APIs can produce reliable venue audio.
+14. As the demo operator, I want the server to own Room State, so that dashboard, output, fallback, and tests all use the same room interpretation.
+15. As the demo operator, I want the server to own Music Parameters, so that the output tab stays focused on audio rendering.
+16. As the demo operator, I want a simple status display of connected clients and energy, so that I can trust the demo state before presenting.
+17. As a developer, I want Vibe Vectors to be small JSON-shaped messages, so that the transport stays debuggable under hackathon pressure.
+18. As a developer, I want Frame Differencing for Camera Sensing, so that motion sensing is fast, privacy-preserving, and buildable in 2 days.
+19. As a developer, I want microphone RMS and onset features, so that audio energy can contribute to Vibe Vectors without sending Raw Media.
+20. As a developer, I want SignalR to handle realtime client communication, so that reconnect and hub semantics do not require custom socket plumbing.
+21. As a developer, I want RoomAggregator logic to be testable without phones, so that stale clients and energy changes can be verified deterministically.
+22. As a developer, I want VibeToMusicMapper logic to be testable without audio output, so that mapping curves can be tuned safely.
+23. As a developer, I want a RecordingSynthesizer test adapter, so that the full pipeline can be checked without speakers.
+24. As a developer, I want a bundled royalty-free Default Stem Pack, so that the demo does not depend on Spotify, YouTube, song uploads, or external catalog APIs.
+25. As a developer, I want only one polished Default Stem Pack in the MVP, so that the team can make one musical experience feel intentional.
+26. As a listener, I want the output to sound like music rather than a crude beep loop, so that the demo feels worth showing.
+27. As a listener, I want low, medium, high, and peak states to sound different, so that crowd energy changes are obvious.
+28. As a listener, I want transitions to avoid clicks, pops, and chaotic tempo jumps, so that the system feels like a DJ rather than a glitch.
+29. As the team, I want commercial songs out of scope, so that copyright and arbitrary beat-matching do not derail the MVP.
+30. As the team, I want extra stem packs deferred, so that the first demo succeeds before the product expands.
 
-- Hackathon judges who need to understand the causal loop quickly.
-- Audience participants joining from mobile browsers.
-- The project team running the laptop server and audio output.
+## Implementation Decisions
 
-## Core User Flows
+- Use ASP.NET Core for the local laptop server.
+- Use SignalR as the realtime transport between participant phones, server, and output tab.
+- Use TypeScript in browser clients: participant page, output tab, and browser-side sensing/audio code.
+- Use a dedicated output browser tab for audio rendering rather than server-side audio synthesis.
+- The SignalR server is authoritative for both Room State and Music Parameters.
+- Participant phones send only Vibe Vectors. Raw Media never leaves participant devices.
+- The MVP Control Loop requires one real phone to control the output loop.
+- Camera Sensing and Microphone Sensing are both required for the MVP.
+- Camera Sensing uses Frame Differencing, not pose detection or gesture recognition.
+- Microphone Sensing uses lightweight audio features such as RMS and onset rate.
+- The primary Demo Access Path is an HTTPS tunnel.
+- `mkcert` is retained as a local certificate fallback or extension.
+- Booth Device Mode is a fallback, not the primary MVP experience.
+- Synthetic input is a development and fallback tool, not sufficient by itself for MVP success.
+- Use one polished Bundled Stem Pack for the MVP.
+- The Default Stem Pack direction is Melodic Desi/Electronic Fusion.
+- The audio engine uses stem playback plus Procedural Effects, not full neural music generation.
+- Commercial songs, arbitrary song uploads, and music-platform fetching are out of scope.
+- Apply audio changes on beat or bar boundaries where possible.
+- Use ramps/smoothing for filter, gain, and layer transitions.
+- Keep RoomAggregator and VibeToMusicMapper pure enough to test independently.
+- Keep transport adapters thin so SignalR details do not leak into aggregation or mapping logic.
 
-### Participant joins
+Primary test seam:
 
-1. Participant scans a QR code pointing to the laptop server.
-2. Browser opens the join page over HTTPS.
-3. Participant taps join.
-4. Browser asks for camera and microphone permission.
-5. Client starts sending vibe vectors over WebSocket.
-6. Participant sees lightweight feedback that they are connected.
+- The highest-value seam is the pipeline from accepted Vibe Vectors through RoomAggregator and VibeToMusicMapper to emitted Music Parameters. This seam proves the server-owned interpretation of the room without requiring camera, microphone, SignalR clients, or speakers.
 
-### Room changes the music
+Secondary seams:
 
-1. Multiple clients send vibe vectors about 5 times per second.
-2. Server aggregates client vectors into one room state.
-3. Mapper converts room state into music parameters.
-4. Synthesizer applies parameter changes on musical boundaries.
-5. Audio output changes in tempo, density, filter, or active layers.
+- Browser VibeSensor can be tested manually and with synthetic fixtures because mobile APIs are hardware/browser dependent.
+- SignalR hub behavior can be tested with lightweight integration clients.
+- Output tab behavior can be tested with a RecordingSynthesizer-style adapter and manual audio checks for musical quality.
 
-### Demo fallback
+## Testing Decisions
 
-1. If phone capture or venue HTTPS setup fails, use a synthetic sensor or booth-device mode.
-2. System still demonstrates quiet, building, peak, and cooldown states.
+- Test observable behavior, not implementation details.
+- Unit test RoomAggregator with deterministic `now` values.
+- Unit test stale-client decay so dropped phones do not freeze high energy.
+- Unit test idle, warming, active, cooling, and cooldown behavior.
+- Unit test VibeToMusicMapper for low, medium, high, and peak Room State inputs.
+- Unit test smoothing/hysteresis so Music Parameters do not flicker near thresholds.
+- Integration test that one synthetic client can send Vibe Vectors and cause Music Parameters to change.
+- Integration test that multiple synthetic clients aggregate into a sensible Room State.
+- Integration test that a stale client stops contributing after the timeout window.
+- Manually test one real phone over the HTTPS tunnel on the first build day.
+- Manually test camera permission, microphone permission, and denied-permission states.
+- Manually test Frame Differencing under low light, bright light, and phone movement.
+- Manually test output tab audio for clean looping, no obvious clicks, and audible response within roughly 0.5 to 2 seconds.
+- Keep synthetic and Booth Device paths available for repeatable demo rehearsal.
 
-## Functional Requirements
+## Out of Scope
 
-### Client Vibe Sensor
+- Full neural music generation.
+- Commercial song playback.
+- Spotify, YouTube, or streaming-platform integration.
+- User-uploaded songs.
+- Arbitrary regional song detection.
+- Automatic beat matching across arbitrary tracks.
+- Pose detection, gesture recognition, or choreography detection.
+- Multi-pack library support in the MVP.
+- Per-phone synchronized audio playback.
+- Raw video, camera frames, microphone audio, or diagnostic media uploads.
+- Durable accounts, databases, analytics, or cloud deployment as required MVP infrastructure.
+- Large-scale multi-room or internet-scale deployment.
 
-- Capture camera and microphone input using browser APIs.
-- Compute a `VibeVector` containing:
-  - `motion`
-  - `motionVariance`
-  - `audioRms`
-  - `onsetRate`
-  - `timestamp`
-- Emit vectors at roughly 5 Hz.
-- Support a synthetic mode for local testing without real movement.
-- Handle denied camera permission by falling back to mic-only when possible.
-- Keep the screen awake when supported.
+## Further Notes
 
-### Transport
-
-- Use JSON over WebSocket.
-- Support `hello` and `vibe` client messages.
-- Optionally send `roomState` updates back to clients.
-- Detect stale clients after about 2 seconds without messages.
-- Keep reconnect and timeout behavior thin and predictable.
-
-### Room Aggregation
-
-- Aggregate one or more clients into:
-  - `energy`
-  - `coherence`
-  - `activeClients`
-- Decay stale client contributions toward neutral instead of freezing the last value.
-- Accept `now` as an input for deterministic tests.
-- Support idle, warming, active, and cooling behavior.
-
-### Music Mapping
-
-- Convert `RoomState` into:
-  - `tempo`
-  - `filterCutoff`
-  - `noteDensity`
-  - `layerCount`
-- Use smoothing or hysteresis to avoid flickering behavior.
-- Keep mapping pure and easy to unit test.
-- Make high-energy changes obvious in the live demo.
-
-### Synthesizer
-
-- Produce continuous procedural music.
-- Apply small parameter changes on beat boundaries.
-- Apply tempo or structural changes on bar boundaries.
-- Avoid clicks, pops, or abrupt mid-bar changes.
-- Provide a recording/fake adapter for tests.
-
-## Quality Requirements
-
-- Raw vibe pipeline should stay under roughly 300 ms before musical quantization.
-- Audible response should feel intentional within about 0.5 to 2 seconds.
-- MVP should work on a local venue network without cloud hosting.
-- System should remain useful with 1 phone and become more compelling with 3 or more.
-- Core logic should be testable without camera, microphone, speakers, or WebSocket server.
-
-## Technical Constraints
-
-- Local laptop runs the Node.js server.
-- Phones run browser clients.
-- Camera and microphone require HTTPS secure context on mobile browsers.
-- No raw media should leave participant devices.
-- Prefer a small stack:
-  - Node.js / TypeScript
-  - `ws` for WebSockets
-  - browser APIs for capture
-  - Tone.js or Web Audio for synthesis
-
-## MVP Scope
-
-- Static join page served by the laptop.
-- Real or synthetic vibe vector production.
-- WebSocket server that accepts multiple clients.
-- Room aggregation with stale-client decay.
-- Pure vibe-to-music mapper.
-- Procedural synth/output tab that reacts to mapped parameters.
-- Basic demo controls or status panel showing connected clients and room energy.
-
-## Stretch Scope
-
-- Magenta.js or another lightweight melody generator, only if non-blocking.
-- Better visual feedback on participant phones.
-- QR-code display page.
-- Calibration screen for venue noise and lighting.
-- Multi-phone test harness with scripted scenarios.
-
-## Success Metrics
-
-- A new phone can join in under 30 seconds during a demo.
-- The system works with at least 3 simultaneous phones.
-- A quiet-to-energetic room transition audibly changes the music.
-- A dropped phone does not leave the music stuck at high energy.
-- The core mapper and aggregator can be tested with deterministic inputs.
-
-## Open Questions
-
-- Will the demo use pre-trusted local certificates, an HTTPS tunnel, or booth-device fallback?
-- Will synthesis run headless on the server or inside a dedicated output browser tab?
-- What exact music style should the procedural engine target for the demo?
-- Which visual feedback is most useful on participant phones without distracting from the room?
+- The project has a 2-day hackathon window, so the build should prioritize the MVP Control Loop before polish.
+- Performance requirements are modest: a handful of phones sending small Vibe Vectors around 5 times per second is well within ASP.NET Core and SignalR capacity.
+- The largest demo risks are HTTPS setup, mobile browser permissions, phone throttling/screen lock, and output quality.
+- A visible dashboard or status panel is valuable because it lets the team confirm connected clients, Room State, and Music Parameters before asking judges to interact.
+- The first Default Stem Pack should be selected early so mapping can be tuned by ear rather than guessed abstractly.

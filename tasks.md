@@ -4,9 +4,9 @@ Use these as small prompts for future coding sessions. Each task should leave th
 
 ## Foundation
 
-- Create a TypeScript Node project skeleton with scripts for dev, build, and test.
-- Add shared domain types for `VibeVector`, `RoomState`, `MusicParams`, and WebSocket messages.
-- Add runtime validation for inbound WebSocket messages.
+- Create an ASP.NET Core server project and TypeScript browser project skeletons with scripts for dev, build, and test.
+- Add shared message contracts for `VibeVector`, `RoomState`, `MusicParams`, and SignalR messages.
+- Add runtime validation for inbound SignalR messages.
 - Expand `README.md` with setup, run, and demo instructions.
 
 ## Pure Logic
@@ -22,7 +22,7 @@ Use these as small prompts for future coding sessions. Each task should leave th
 
 ## Transport
 
-- Implement a `ws` WebSocket server.
+- Implement an ASP.NET Core SignalR hub.
 - Add `hello` client registration.
 - Add `vibe` message ingestion.
 - Add client timeout handling.
@@ -45,9 +45,9 @@ Use these as small prompts for future coding sessions. Each task should leave th
 ## Synth
 
 - Build a browser-based output page for the venue laptop.
-- Connect the output page to the WebSocket server.
+- Connect the output page to the SignalR hub.
 - Implement `RecordingSynthesizer` for tests.
-- Implement `RealSynthesizer` with Tone.js or Web Audio.
+- Implement `RealSynthesizer` with Tone.js or Web Audio stem playback and procedural effects.
 - Add beat/bar quantization for parameter updates.
 - Map `tempo`, `filterCutoff`, `noteDensity`, and `layerCount` to audible changes.
 - Add audio ramps to avoid clicks.

@@ -53,11 +53,11 @@ interface VibeTransport {
 }
 ```
 
-**What it hides:** WebSocket plumbing, reconnect/backoff, and — importantly — liveness detection (a phone that goes quiet because it dropped off wifi should eventually fire `onClientTimeout`, not just silently stop sending). That liveness behavior is real enough to justify keeping this as its own small module rather than inlining socket code into the aggregator.
+**What it hides:** SignalR plumbing, reconnect/backoff, and — importantly — liveness detection (a phone that goes quiet because it dropped off wifi should eventually fire `onClientTimeout`, not just silently stop sending). That liveness behavior is real enough to justify keeping this as its own small module rather than inlining hub code into the aggregator.
 
 **Deletion test:** delete it, and `RoomAggregator` would need to know about sockets, timeouts, and reconnects directly — real behavior would leak upward. Worth keeping, but keep the interface small; resist the urge to let it grow options it doesn't need yet.
 
-**Seam:** `RealWebSocketTransport` vs. `InMemoryTransport` (for testing `RoomAggregator` + downstream modules together without a socket server running). Two adapters, real seam — this is what lets you unit-test "3 clients send vectors, one goes stale, does `RoomState` decay correctly" without spinning up a server.
+**Seam:** `SignalRVibeTransport` vs. `InMemoryTransport` (for testing `RoomAggregator` + downstream modules together without a SignalR server running). Two adapters, real seam — this is what lets you unit-test "3 clients send vectors, one goes stale, does `RoomState` decay correctly" without spinning up a server.
 
 ---
 
@@ -122,11 +122,11 @@ interface Synthesizer {
 }
 ```
 
-**What it hides:** the actual Tone.js/Web Audio sequencing — kick/bass/pad layers, scheduling, voice management. `update()` is the only thing a caller ever touches; everything else is internal.
+**What it hides:** the actual Tone.js/Web Audio stem playback — loop scheduling, layer muting, filter/effect ramps, and voice management. `update()` is the only thing a caller ever touches; everything else is internal.
 
 **Deletion test:** delete it, and you'd have no sound. Not a pass-through by definition, but worth checking it doesn't leak scheduling details upward — it shouldn't need to expose anything beyond `update()`.
 
-**Seam and why it's real:** `RealSynthesizer` (Tone.js, produces actual audio) vs. `RecordingSynthesizer` (just appends every `MusicParams` it receives to a list, no audio). The second adapter is what lets you integration-test the whole pipeline — sensor → transport → aggregator → mapper → synthesizer — and assert "after 3 seconds of high motion, tempo ended up around 128 BPM," without ever touching real audio output. Given a 2-person team, this is what lets one person work on the mapper/aggregator logic while the other is still building the real synth.
+**Seam and why it's real:** `RealSynthesizer` (Tone.js/Web Audio stem playback, produces actual audio) vs. `RecordingSynthesizer` (just appends every `MusicParams` it receives to a list, no audio). The second adapter is what lets you integration-test the whole pipeline — sensor → transport → aggregator → mapper → synthesizer — and assert "after 3 seconds of high motion, layer count and filter openness increased," without ever touching real audio output. Given a 2-person team, this is what lets one person work on the mapper/aggregator logic while the other is still building the real synth.
 
 ---
 

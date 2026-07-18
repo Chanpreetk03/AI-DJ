@@ -2,7 +2,7 @@
 
 **Status:** Proposed
 **Date:** 2026-07-17
-**Deciders:** Shivansh + teammate (hackathon team)
+**Deciders:** Shivansh + Chanpreet (hackathon team)
 
 ## Context
 
@@ -21,7 +21,7 @@ The open question this ADR resolves: **where does the "read the room" analysis h
 Use a **hybrid edge-extraction + centralized generation** architecture:
 
 1. Each contributing phone (whether it's the one booth device or several audience phones) runs **lightweight, on-device feature extraction** in the browser — not raw video/audio upload. It reduces camera + mic input to a small "vibe vector" (motion magnitude, motion variance/synchrony, mic RMS/onset density) a few times per second.
-2. Vibe vectors are streamed over **WebSocket** to a central Node.js server, which aggregates multiple phones into one **room vibe state** (energy, movement density, sync/coherence).
+2. Vibe vectors are streamed over **SignalR** to a central ASP.NET Core server, which aggregates multiple phones into one **room vibe state** (energy, movement density, sync/coherence).
 3. The room vibe state drives a **server-side parametric generative music engine** (rule-based procedural synthesis with light generative variation), which renders a **single continuous audio stream** played through the venue's speakers — not sent back to individual phones (avoids sync/latency hell).
 
 This keeps bandwidth tiny (JSON vectors, not video), lets you demo with one phone on day 2 and bolt on multi-phone aggregation later without re-architecting, and avoids the two biggest hackathon risks: streaming raw video to a server, and relying on neural music generation to sound good live under demo pressure.
@@ -58,7 +58,7 @@ This keeps bandwidth tiny (JSON vectors, not video), lets you demo with one phon
 |-----------|------------|
 | Complexity | Medium — the sweet spot |
 | Cost | Minimal — a small vector every ~200ms per phone, not video |
-| Scalability | Good — adding phones just means more WebSocket clients |
+| Scalability | Good — adding phones just means more realtime clients |
 | Team familiarity | Splits cleanly: one person owns client-side capture, one owns server + music engine |
 
 **Pros:** Small payloads mean low, predictable latency even over conference-room wifi. Works identically whether it's 1 device or 10 — just changes how many vectors get averaged. No raw video ever leaves the phone, sidesteps privacy concerns entirely. Splits naturally into two parallel workstreams for a 2-person team.
@@ -68,7 +68,7 @@ This keeps bandwidth tiny (JSON vectors, not video), lets you demo with one phon
 
 The real fork isn't "on-device vs. cloud" in the abstract — it's **what crosses the network**. Sending raw media (Option B) buys you analysis quality but costs you latency, bandwidth, and a chunk of your week on media plumbing. Sending nothing (Option A) buys you speed but forecloses the multi-phone mode you explicitly want to support. Sending a *compressed feature vector* (Option C) is the classic edge-compute trade: you accept slightly coarser per-frame signal in exchange for near-zero bandwidth and a server that only ever has to reason about small JSON, which is both fast and easy to debug live on stage.
 
-For the music generation itself, the same logic applies: a neural generative model (e.g., MusicVAE-style) is more impressive on paper but is a latency and reliability risk you can't afford live. A **parametric procedural engine** — think a sequencer where crowd energy maps to tempo, note density, filter cutoff, and layer count — is far more demo-safe: it always produces *something musical*, and the "AI" story is in how the mapping from crowd state to musical parameters is learned/tuned, not in risking a live neural inference glitch on stage. Consider one small generative flourish (e.g., a Magenta.js melody call every N bars, non-blocking) as a stretch goal layered on top of the reliable procedural core, so a hiccup there degrades gracefully instead of killing the mix.
+For the music generation itself, the same logic applies: a neural generative model (e.g., MusicVAE-style) is more impressive on paper but is a latency and reliability risk you can't afford live. A **curated stem engine with procedural effects** — think royalty-free loops where crowd energy maps to layer count, filter cutoff, intensity, and transitions — is far more demo-safe: it always produces *something musical*, and the "AI" story is in how the mapping from crowd state to musical parameters is learned/tuned, not in risking a live neural inference glitch on stage. Consider one small generative flourish only if the core stem engine is solid.
 
 ## Consequences
 
@@ -79,8 +79,8 @@ For the music generation itself, the same logic applies: a neural generative mod
 ## Action Items
 
 1. [ ] Prototype the client-side vibe vector extraction first (Day 1–2): getUserMedia + simple frame-diff motion magnitude, Web Audio API mic RMS/onset detection — no ML model needed initially, add MediaPipe pose later only if time allows.
-2. [ ] Build the WebSocket server + room-state aggregator (Day 1–2, parallel): averages/weights incoming vibe vectors, decays toward neutral on client disconnect.
-3. [ ] Build the parametric procedural music engine (Day 2–4): map {energy, density, sync} → {tempo, filter cutoff, layer density, note density} using Tone.js or a Web Audio-based sequencer running server-side (headless) or on a dedicated "output" browser tab feeding the PA.
+2. [ ] Build the ASP.NET Core SignalR hub + room-state aggregator (Day 1–2, parallel): averages/weights incoming vibe vectors, decays toward neutral on client disconnect.
+3. [ ] Build the stem-based procedural effects engine (Day 2–4): map {energy, density, sync} → {filter cutoff, layer density, stem intensity, gentle tempo changes} using Tone.js or Web Audio in a dedicated "output" browser tab feeding the PA.
 4. [ ] Integration pass with 1 phone (Day 4), then 3+ phones (Day 5) to validate aggregation actually changes the mix noticeably.
 5. [ ] Stretch: layer in a light generative melody call (Magenta.js or similar) gated so it never blocks the core loop (Day 6, only if core is solid).
 6. [ ] Rehearse the live demo end-to-end with real room movement, not synthetic test data, at least once before presenting (Day 6–7).
