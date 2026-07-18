@@ -34,7 +34,8 @@ startAudio.addEventListener("click", async () => {
     startAudio.textContent = "Audio playing";
   } catch (error) {
     console.error(error);
-    status.textContent = "Audio could not start. Check browser permissions.";
+    const message = error instanceof Error ? error.message : "Browser blocked playback";
+    status.textContent = `Audio could not start: ${message}`;
     startAudio.textContent = "Try audio again";
     startAudio.disabled = false;
   }
