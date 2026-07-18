@@ -32,6 +32,7 @@ export class DefaultStemPack {
       throw new Error(`Audio context did not start: ${this.context.state}`);
     }
 
+    this.playStartupTone();
     if (this.atmosphereOscillator === undefined) {
       this.atmosphereOscillator = this.context.createOscillator();
       this.atmosphereOscillator.type = "sine";
@@ -93,6 +94,21 @@ export class DefaultStemPack {
       gain.gain.cancelScheduledValues(now);
       gain.gain.linearRampToValueAtTime(target, now + 0.2);
     });
+  }
+
+  private playStartupTone(): void {
+    const oscillator = this.context.createOscillator();
+    const gain = this.context.createGain();
+    const now = this.context.currentTime;
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(440, now);
+    oscillator.frequency.exponentialRampToValueAtTime(660, now + 0.16);
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.42);
+    oscillator.connect(gain).connect(this.masterGain);
+    oscillator.start(now);
+    oscillator.stop(now + 0.45);
   }
 
   private scheduleUpcomingBeat(): void {
