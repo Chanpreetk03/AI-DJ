@@ -16,10 +16,15 @@ const motion = document.querySelector<HTMLElement>("#motion")!;
 const audioRms = document.querySelector<HTMLElement>("#audio-rms")!;
 const onsetRate = document.querySelector<HTMLElement>("#onset-rate")!;
 const lastUpdate = document.querySelector<HTMLElement>("#last-update")!;
+const startRehearsal = document.querySelector<HTMLButtonElement>("#start-rehearsal")!;
+const stopRehearsal = document.querySelector<HTMLButtonElement>("#stop-rehearsal")!;
+const rehearsalStatus = document.querySelector<HTMLElement>("#rehearsal-status")!;
 const startAudio = document.querySelector<HTMLButtonElement>("#start-audio")!;
 const connection = createConnection();
 const stemPack = new DefaultStemPack();
 let lastVibeAt = 0;
+let rehearsalTimer: number | undefined;
+let rehearsalStartedAt = 0;
 
 connection.on("MusicParamsUpdated", (params: MusicParams) => {
   tempo.textContent = `${Math.round(params.tempo)} BPM`;
@@ -69,6 +74,26 @@ startAudio.addEventListener("click", async () => {
   }
 });
 
+startRehearsal.addEventListener("click", () => {
+  if (connection.state !== "Connected") {
+    rehearsalStatus.textContent = "Connect the output tab before starting rehearsal";
+    return;
+  }
+
+  stopRehearsalSequence();
+  rehearsalStartedAt = Date.now();
+  startRehearsal.disabled = true;
+  stopRehearsal.disabled = false;
+  rehearsalStatus.textContent = "Synthetic Booth Device Mode · warming up";
+  rehearsalTimer = window.setInterval(sendRehearsalVector, 200);
+  sendRehearsalVector();
+});
+
+stopRehearsal.addEventListener("click", () => {
+  stopRehearsalSequence();
+  rehearsalStatus.textContent = "Audience Phone Mode active";
+});
+
 connect();
 
 async function connect(): Promise<void> {
@@ -89,4 +114,52 @@ function formatPercent(value: number): string {
 function setSignalHealth(label: string, className: string): void {
   signalHealth.textContent = label;
   signalHealth.className = `health-badge ${className}`;
+}
+
+function sendRehearsalVector(): void {
+  const elapsedSeconds = (Date.now() - rehearsalStartedAt) / 1_000;
+  const energy = rehearsalEnergy(elapsedSeconds);
+  const vibe = {
+    motion: energy,
+    motionVariance: Math.min(energy * 0.8, 1),
+    audioRms: Math.min(energy * 0.9, 1),
+    onsetRate: energy * 4,
+    timestamp: Date.now()
+  };
+
+  void connection.invoke("SendVibe", vibe).catch((error) => {
+    console.error(error);
+    rehearsalStatus.textContent = "Synthetic rehearsal connection lost";
+    stopRehearsalSequence();
+  });
+
+  if (elapsedSeconds < 4) {
+    rehearsalStatus.textContent = "Synthetic Booth Device Mode · quiet warm-up";
+  } else if (elapsedSeconds < 10) {
+    rehearsalStatus.textContent = "Synthetic Booth Device Mode · building energy";
+  } else if (elapsedSeconds < 15) {
+    rehearsalStatus.textContent = "Synthetic Booth Device Mode · peak";
+  } else if (elapsedSeconds < 20) {
+    rehearsalStatus.textContent = "Synthetic Booth Device Mode · cooling down";
+  } else {
+    stopRehearsalSequence();
+    rehearsalStatus.textContent = "Audience Phone Mode active";
+  }
+}
+
+function rehearsalEnergy(elapsedSeconds: number): number {
+  if (elapsedSeconds < 4) return 0.12;
+  if (elapsedSeconds < 10) return 0.12 + ((elapsedSeconds - 4) / 6) * 0.88;
+  if (elapsedSeconds < 15) return 1;
+  if (elapsedSeconds < 20) return 1 - ((elapsedSeconds - 15) / 5) * 0.88;
+  return 0.12;
+}
+
+function stopRehearsalSequence(): void {
+  if (rehearsalTimer !== undefined) {
+    window.clearInterval(rehearsalTimer);
+    rehearsalTimer = undefined;
+  }
+  startRehearsal.disabled = false;
+  stopRehearsal.disabled = true;
 }

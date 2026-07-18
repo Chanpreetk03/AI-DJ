@@ -33,6 +33,18 @@
           <div class="operator-metric"><span>Last update</span><strong id="last-update">Waiting</strong></div>
         </div>
       </section>
+      <section class="rehearsal-panel" aria-labelledby="rehearsal-title">
+        <div>
+          <p class="eyebrow">Fallback mode</p>
+          <h2 id="rehearsal-title">Synthetic rehearsal</h2>
+          <p class="muted small">Drives the same Vibe Vector → Room State → Music Parameters path as a participant phone.</p>
+        </div>
+        <div class="rehearsal-actions">
+          <button id="start-rehearsal" class="button secondary" type="button">Run quiet → peak → cooldown</button>
+          <button id="stop-rehearsal" class="button text-button" type="button" disabled>Stop</button>
+        </div>
+        <p id="rehearsal-status" class="rehearsal-status">Audience Phone Mode active</p>
+      </section>
       <button id="start-audio" class="button">Start audio output</button>
       <p class="muted small">The Default Stem Pack uses four smoothly mixed layers. Audio playback requires one click in this tab.</p>
     </main>

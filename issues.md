@@ -190,11 +190,11 @@ Add synthetic and Booth Device paths that drive the same server-owned Room State
 
 ## Acceptance criteria
 
-- [ ] Synthetic input can drive a quiet-to-peak-to-cooldown sequence.
-- [ ] Synthetic input uses the same SignalR/server path as real clients where practical.
-- [ ] Booth Device Mode can contribute Vibe Vectors from a controlled device or local page.
-- [ ] Fallback modes are clearly labeled so they are not confused with Audience Phone Mode.
-- [ ] Output tab responds to fallback input through the same Music Parameters path.
+- [x] Synthetic input can drive a quiet-to-peak-to-cooldown sequence.
+- [x] Synthetic input uses the same SignalR/server path as real clients where practical.
+- [x] Booth Device Mode can contribute Vibe Vectors from a controlled device or local page.
+- [x] Fallback modes are clearly labeled so they are not confused with Audience Phone Mode.
+- [x] Output tab responds to fallback input through the same Music Parameters path.
 
 ## Blocked by
 
