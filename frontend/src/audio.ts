@@ -1,6 +1,17 @@
 import type { MusicParams } from "./protocol";
 
 type AudioLayer = "percussion" | "bass" | "atmosphere" | "melody";
+export type MusicStyle = "auto" | "chill" | "desi" | "house" | "festival";
+
+type StyleProfile = {
+  kickSteps: number[];
+  snareSteps: number[];
+  hatSteps: number[];
+  bassPattern: number[];
+  leadPhrase: number[];
+  chordProgression: number[][];
+  leadEvery: number;
+};
 
 const layerOrder: AudioLayer[] = ["percussion", "bass", "atmosphere", "melody"];
 const chordProgression = [
@@ -19,6 +30,46 @@ const bassPattern = [110, 110, 110, 130.81, 87.31, 87.31, 98, 130.81];
 const leadPhrase = [329.63, 392, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63, 392, 440, 493.88, 440, 392, 329.63, 293.66];
 const alternateBassPattern = [98, 98, 130.81, 146.83, 110, 110, 130.81, 146.83];
 const alternateLeadPhrase = [392, 440, 493.88, 440, 392, 329.63, 293.66, 329.63, 392, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63];
+const styleProfiles: Record<Exclude<MusicStyle, "auto">, StyleProfile> = {
+  chill: {
+    kickSteps: [0, 8],
+    snareSteps: [8],
+    hatSteps: [2, 6, 10, 14],
+    bassPattern: [110, 110, 0, 110, 87.31, 87.31, 0, 98],
+    leadPhrase: [329.63, 0, 392, 0, 440, 0, 392, 0, 329.63, 0, 293.66, 0, 261.63, 0, 293.66, 0],
+    chordProgression,
+    leadEvery: 4,
+  },
+  desi: {
+    kickSteps: [0, 3, 6, 8, 10, 14],
+    snareSteps: [4, 12],
+    hatSteps: [1, 3, 5, 7, 9, 11, 13, 15],
+    bassPattern: [110, 0, 110, 130.81, 87.31, 98, 0, 130.81],
+    leadPhrase: alternateLeadPhrase,
+    chordProgression: alternateChordProgression,
+    leadEvery: 2,
+  },
+  house: {
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    hatSteps: [2, 6, 10, 14],
+    bassPattern: [110, 110, 0, 110, 110, 110, 0, 130.81],
+    leadPhrase,
+    chordProgression,
+    leadEvery: 2,
+  },
+  festival: {
+    kickSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    snareSteps: [4, 12, 15],
+    hatSteps: [1, 3, 5, 7, 9, 11, 13, 15],
+    bassPattern: [130.81, 130.81, 110, 130.81, 98, 98, 110, 130.81],
+    leadPhrase: [261.63, 293.66, 329.63, 392, 440, 493.88, 523.25, 493.88, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63, 392],
+    chordProgression: [
+      [261.63, 329.63, 392], [220, 261.63, 329.63], [174.61, 220, 261.63], [196, 246.94, 293.66],
+    ],
+    leadEvery: 1,
+  },
+};
 
 export class DefaultStemPack {
   private context!: AudioContext;
@@ -40,6 +91,9 @@ export class DefaultStemPack {
   private stableLayerCount = 1;
   private requestedLayerCount = 1;
   private requestedLayerRepeats = 0;
+  private selectedStyle: MusicStyle = "auto";
+  private activeStyle: Exclude<MusicStyle, "auto"> = "chill";
+  private roomEnergy = 0;
   private timer: number | undefined;
   private nextBeatAt = 0;
   private beatNumber = 0;
@@ -74,6 +128,17 @@ export class DefaultStemPack {
     const stableLayerCount = this.resolveStableLayerCount(parameters.layerCount);
     this.parameters = { ...parameters, layerCount: stableLayerCount };
     this.pendingParameters = this.parameters;
+  }
+
+  public setStyle(style: MusicStyle): void {
+    this.selectedStyle = style;
+    if (style !== "auto") {
+      this.activeStyle = style;
+    }
+  }
+
+  public setRoomEnergy(energy: number): void {
+    this.roomEnergy = Math.max(0, Math.min(1, energy));
   }
 
   private initializeAudioGraph(): void {
@@ -189,33 +254,41 @@ export class DefaultStemPack {
 
     const secondsPerBeat = 60 / Math.max(this.parameters.tempo, 40);
     const step = beatNumber % 16;
-    const variant = Math.floor(beatNumber / 32) % 2;
+    if (this.selectedStyle === "auto" && beatNumber % 32 === 0) {
+      this.activeStyle = this.roomEnergy < 0.25 ? "chill" :
+        this.roomEnergy < 0.55 ? "desi" :
+          this.roomEnergy < 0.8 ? "house" : "festival";
+    }
+    const profile = styleProfiles[this.activeStyle];
 
-    if (step % 4 === 0 || (this.parameters.layerCount >= 4 && step === 10)) {
+    if (profile.kickSteps.includes(step)) {
       this.playKick(time);
     }
 
-    if (step === 4 || step === 12) {
+    if (profile.snareSteps.includes(step)) {
       this.playSnare(time);
     }
 
-    if (this.parameters.layerCount >= 2 || this.parameters.noteDensity > 0.35) {
+    if ((this.parameters.layerCount >= 2 || this.parameters.noteDensity > 0.35) && profile.hatSteps.includes(step)) {
       this.playHat(time + secondsPerBeat / 2 + (step % 2 === 0 ? secondsPerBeat * 0.025 : 0));
     }
 
     if (this.parameters.layerCount >= 2) {
-      const activeBassPattern = variant === 0 ? bassPattern : alternateBassPattern;
-      this.playBass(time, activeBassPattern[step % activeBassPattern.length], step % 4 === 0 ? 0.38 : 0.22);
+      const bassFrequency = profile.bassPattern[step % profile.bassPattern.length];
+      if (bassFrequency > 0) {
+        this.playBass(time, bassFrequency, step % 4 === 0 ? 0.38 : 0.22);
+      }
     }
 
     if (this.parameters.layerCount >= 3 && step % 4 === 0) {
-      const activeProgression = variant === 0 ? chordProgression : alternateChordProgression;
-      this.playChord(time, activeProgression[Math.floor(step / 4) % activeProgression.length], secondsPerBeat * 3.4);
+      this.playChord(time, profile.chordProgression[Math.floor(step / 4) % profile.chordProgression.length], secondsPerBeat * 3.4);
     }
 
-    if (this.parameters.layerCount >= 4 && (step % 2 === 0 || this.parameters.noteDensity > 0.85)) {
-      const activeLeadPhrase = variant === 0 ? leadPhrase : alternateLeadPhrase;
-      this.playLead(time, activeLeadPhrase[step % activeLeadPhrase.length], secondsPerBeat * 0.72);
+    if (this.parameters.layerCount >= 4 && step % profile.leadEvery === 0) {
+      const leadFrequency = profile.leadPhrase[step % profile.leadPhrase.length];
+      if (leadFrequency > 0) {
+        this.playLead(time, leadFrequency, secondsPerBeat * (profile === styleProfiles.chill ? 1.4 : 0.72));
+      }
     }
   }
 

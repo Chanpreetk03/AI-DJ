@@ -1,5 +1,5 @@
 import { createConnection } from "./connection";
-import { DefaultStemPack } from "./audio";
+import { DefaultStemPack, type MusicStyle } from "./audio";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
 import "./styles.css";
@@ -12,6 +12,7 @@ const tempo = document.querySelector<HTMLElement>("#tempo")!;
 const layers = document.querySelector<HTMLElement>("#layers")!;
 const participantCount = document.querySelector<HTMLElement>("#participant-count")!;
 const startAudio = document.querySelector<HTMLButtonElement>("#start-audio")!;
+const musicStyle = document.querySelector<HTMLSelectElement>("#music-style")!;
 const inviteButton = document.querySelector<HTMLButtonElement>("#invite-button")!;
 const inviteModal = document.querySelector<HTMLElement>("#invite-modal")!;
 const closeInvite = document.querySelector<HTMLButtonElement>("#close-invite")!;
@@ -34,6 +35,11 @@ connection.on("MusicParamsUpdated", (params: MusicParams) => {
 connection.on("RoomStateUpdated", (state: RoomState) => {
   participantCount.textContent = `${state.activeClients}`;
   targetEnergy = state.energy;
+  stemPack.setRoomEnergy(state.energy);
+});
+
+musicStyle.addEventListener("change", () => {
+  stemPack.setStyle(musicStyle.value as MusicStyle);
 });
 
 function animateSpeaker(): void {
