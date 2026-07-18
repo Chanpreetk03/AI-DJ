@@ -33,7 +33,7 @@ joinButton.addEventListener("click", async () => {
   status.textContent = "Requesting camera and microphone…";
 
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const stream = await requestMediaStream();
     camera.srcObject = stream;
     await camera.play();
     const connection = createConnection();
@@ -47,12 +47,42 @@ joinButton.addEventListener("click", async () => {
     startSensorLoop(connection, stream);
   } catch (error) {
     console.error(error);
-    const message = error instanceof Error ? error.message : "permission or connection error";
-    status.textContent = `Could not join: ${message}`;
+    status.textContent = describeJoinError(error);
     joinButton.disabled = false;
     nameInput.disabled = false;
   }
 });
+
+async function requestMediaStream(): Promise<MediaStream> {
+  if (!window.isSecureContext) {
+    throw new Error("Open the HTTPS tunnel URL, not a local HTTP URL.");
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error("This browser does not provide camera and microphone access.");
+  }
+
+  const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+  try {
+    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    return new MediaStream([...videoStream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+  } catch (error) {
+    videoStream.getTracks().forEach(track => track.stop());
+    throw error;
+  }
+}
+
+function describeJoinError(error: unknown): string {
+  if (error instanceof DOMException && error.name === "NotAllowedError") {
+    return "Permission denied. Allow camera and microphone for this HTTPS site, then retry.";
+  }
+  if (error instanceof DOMException && error.name === "NotFoundError") {
+    return "No camera or microphone was found on this phone.";
+  }
+  if (error instanceof Error) {
+    return `Could not join: ${error.message}`;
+  }
+  return "Could not join. Check camera, microphone, and HTTPS permissions.";
+}
 
 function startSensorLoop(connection: ReturnType<typeof createConnection>, stream: MediaStream): void {
   const canvas = document.createElement("canvas");
