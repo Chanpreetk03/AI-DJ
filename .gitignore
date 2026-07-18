@@ -145,3 +145,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Glitch Stairs WAV copies are source backups; the app uses committed OGG stems/loops.
+frontend/public/stems/glitch-stairs/*.wav

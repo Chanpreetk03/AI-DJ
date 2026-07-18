@@ -24,6 +24,8 @@ public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapp
         {
             connectionRoles.Remove(connectionId);
         }
+
+        aggregator.Remove(connectionId);
     }
 
     public (VibeVector Vibe, RoomState State, MusicParams Parameters) AcceptVibe(string clientId, VibeVector vibe)

@@ -1,16 +1,85 @@
 import type { MusicParams } from "./protocol";
 
-type AudioLayer = "percussion" | "bass" | "melody" | "atmosphere";
+type AudioLayer = "percussion" | "bass" | "atmosphere" | "melody";
+export type MusicStyle = "auto" | "chill" | "desi" | "house" | "festival";
 
-const layerOrder: AudioLayer[] = ["percussion", "bass", "melody", "atmosphere"];
+type StyleProfile = {
+  kickSteps: number[];
+  snareSteps: number[];
+  hatSteps: number[];
+  bassPattern: number[];
+  leadPhrase: number[];
+  chordProgression: number[][];
+  leadEvery: number;
+};
+
+const layerOrder: AudioLayer[] = ["percussion", "bass", "atmosphere", "melody"];
+const chordProgression = [
+  [220, 261.63, 329.63],
+  [174.61, 220, 261.63],
+  [130.81, 164.81, 196],
+  [196, 246.94, 293.66],
+];
+const alternateChordProgression = [
+  [196, 246.94, 293.66],
+  [220, 261.63, 329.63],
+  [174.61, 220, 261.63],
+  [196, 246.94, 293.66],
+];
+const bassPattern = [110, 110, 110, 130.81, 87.31, 87.31, 98, 130.81];
+const leadPhrase = [329.63, 392, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63, 392, 440, 493.88, 440, 392, 329.63, 293.66];
+const alternateBassPattern = [98, 98, 130.81, 146.83, 110, 110, 130.81, 146.83];
+const alternateLeadPhrase = [392, 440, 493.88, 440, 392, 329.63, 293.66, 329.63, 392, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63];
+const styleProfiles: Record<Exclude<MusicStyle, "auto">, StyleProfile> = {
+  chill: {
+    kickSteps: [0, 8],
+    snareSteps: [8],
+    hatSteps: [2, 6, 10, 14],
+    bassPattern: [110, 110, 0, 110, 87.31, 87.31, 0, 98],
+    leadPhrase: [329.63, 0, 392, 0, 440, 0, 392, 0, 329.63, 0, 293.66, 0, 261.63, 0, 293.66, 0],
+    chordProgression,
+    leadEvery: 4,
+  },
+  desi: {
+    kickSteps: [0, 3, 6, 8, 10, 14],
+    snareSteps: [4, 12],
+    hatSteps: [1, 3, 5, 7, 9, 11, 13, 15],
+    bassPattern: [110, 0, 110, 130.81, 87.31, 98, 0, 130.81],
+    leadPhrase: alternateLeadPhrase,
+    chordProgression: alternateChordProgression,
+    leadEvery: 2,
+  },
+  house: {
+    kickSteps: [0, 4, 8, 12],
+    snareSteps: [4, 12],
+    hatSteps: [2, 6, 10, 14],
+    bassPattern: [110, 110, 0, 110, 110, 110, 0, 130.81],
+    leadPhrase,
+    chordProgression,
+    leadEvery: 2,
+  },
+  festival: {
+    kickSteps: [0, 2, 4, 6, 8, 10, 12, 14],
+    snareSteps: [4, 12, 15],
+    hatSteps: [1, 3, 5, 7, 9, 11, 13, 15],
+    bassPattern: [130.81, 130.81, 110, 130.81, 98, 98, 110, 130.81],
+    leadPhrase: [261.63, 293.66, 329.63, 392, 440, 493.88, 523.25, 493.88, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63, 392],
+    chordProgression: [
+      [261.63, 329.63, 392], [220, 261.63, 329.63], [174.61, 220, 261.63], [196, 246.94, 293.66],
+    ],
+    leadEvery: 1,
+  },
+};
 
 export class DefaultStemPack {
   private context!: AudioContext;
   private masterGain!: GainNode;
   private filter!: BiquadFilterNode;
+  private compressor!: DynamicsCompressorNode;
+  private delay!: DelayNode;
+  private delayGain!: GainNode;
   private readonly layerGains = new Map<AudioLayer, GainNode>();
   private noiseBuffer!: AudioBuffer;
-  private atmosphereOscillator: OscillatorNode | undefined;
   private isInitialized = false;
   private parameters: MusicParams = {
     tempo: 92,
@@ -22,6 +91,9 @@ export class DefaultStemPack {
   private stableLayerCount = 1;
   private requestedLayerCount = 1;
   private requestedLayerRepeats = 0;
+  private selectedStyle: MusicStyle = "auto";
+  private activeStyle: Exclude<MusicStyle, "auto"> = "chill";
+  private roomEnergy = 0;
   private timer: number | undefined;
   private nextBeatAt = 0;
   private beatNumber = 0;
@@ -36,14 +108,6 @@ export class DefaultStemPack {
       throw new Error(`Audio context did not start: ${this.context.state}`);
     }
 
-    this.playStartupTone();
-    if (this.atmosphereOscillator === undefined) {
-      this.atmosphereOscillator = this.context.createOscillator();
-      this.atmosphereOscillator.type = "sine";
-      this.atmosphereOscillator.frequency.value = 110;
-      this.atmosphereOscillator.connect(this.layerGains.get("atmosphere")!);
-      this.atmosphereOscillator.start();
-    }
     this.applyParametersAt(this.context.currentTime);
     this.nextBeatAt = this.context.currentTime + 0.05;
     this.beatNumber = 0;
@@ -66,6 +130,17 @@ export class DefaultStemPack {
     this.pendingParameters = this.parameters;
   }
 
+  public setStyle(style: MusicStyle): void {
+    this.selectedStyle = style;
+    if (style !== "auto") {
+      this.activeStyle = style;
+    }
+  }
+
+  public setRoomEnergy(energy: number): void {
+    this.roomEnergy = Math.max(0, Math.min(1, energy));
+  }
+
   private initializeAudioGraph(): void {
     const AudioContextConstructor = window.AudioContext ??
       (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -79,13 +154,25 @@ export class DefaultStemPack {
     this.filter.type = "lowpass";
     this.filter.Q.value = 0.7;
     this.filter.connect(this.masterGain);
-    this.masterGain.gain.value = 0.32;
-    this.masterGain.connect(this.context.destination);
+    this.masterGain.gain.value = 0.22;
+    this.compressor = this.context.createDynamicsCompressor();
+    this.compressor.threshold.value = -18;
+    this.compressor.knee.value = 14;
+    this.compressor.ratio.value = 4;
+    this.compressor.attack.value = 0.008;
+    this.compressor.release.value = 0.16;
+    this.delay = this.context.createDelay(0.5);
+    this.delay.delayTime.value = 0.23;
+    this.delayGain = this.context.createGain();
+    this.delayGain.gain.value = 0.12;
+    this.masterGain.connect(this.compressor);
+    this.masterGain.connect(this.delay).connect(this.delayGain).connect(this.compressor);
+    this.compressor.connect(this.context.destination);
     this.noiseBuffer = this.createNoiseBuffer();
 
     layerOrder.forEach((layer, index) => {
       const gain = this.context.createGain();
-      gain.gain.value = index === 0 ? 0.8 : 0;
+      gain.gain.value = index === 0 ? 0.7 : 0;
       gain.connect(this.filter);
       this.layerGains.set(layer, gain);
     });
@@ -95,16 +182,11 @@ export class DefaultStemPack {
 
   private applyParametersAt(startTime: number): void {
     const now = Math.max(startTime, this.context.currentTime);
-    const cutoff = 450 + this.parameters.filterCutoff * 7_500;
+    const cutoff = 700 + this.parameters.filterCutoff * 8_500;
     this.filter.frequency.cancelScheduledValues(now);
-    this.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.25);
+    this.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.35);
     this.masterGain.gain.cancelScheduledValues(now);
-    this.masterGain.gain.linearRampToValueAtTime(0.22 + this.parameters.noteDensity * 0.3, now + 0.25);
-
-    if (this.atmosphereOscillator !== undefined) {
-      this.atmosphereOscillator.frequency.cancelScheduledValues(now);
-      this.atmosphereOscillator.frequency.linearRampToValueAtTime(70 + this.parameters.tempo * 0.65, now + 0.35);
-    }
+    this.masterGain.gain.linearRampToValueAtTime(0.2 + this.parameters.noteDensity * 0.22, now + 0.35);
 
     layerOrder.forEach((layer, index) => {
       const gain = this.layerGains.get(layer)!;
@@ -170,31 +252,47 @@ export class DefaultStemPack {
       this.applyParametersAt(time);
     }
 
-    if (beatNumber % 2 === 0) {
-      this.playPercussion(time, "kick");
-    } else {
-      this.playPercussion(time, "snare");
+    const secondsPerBeat = 60 / Math.max(this.parameters.tempo, 40);
+    const step = beatNumber % 16;
+    if (this.selectedStyle === "auto" && beatNumber % 32 === 0) {
+      this.activeStyle = this.roomEnergy < 0.25 ? "chill" :
+        this.roomEnergy < 0.55 ? "desi" :
+          this.roomEnergy < 0.8 ? "house" : "festival";
+    }
+    const profile = styleProfiles[this.activeStyle];
+
+    if (profile.kickSteps.includes(step)) {
+      this.playKick(time);
     }
 
-    if (this.parameters.layerCount >= 3 || this.parameters.noteDensity > 0.55) {
-      this.playHat(time + (60 / Math.max(this.parameters.tempo, 40)) / 2);
+    if (profile.snareSteps.includes(step)) {
+      this.playSnare(time);
+    }
+
+    if ((this.parameters.layerCount >= 2 || this.parameters.noteDensity > 0.35) && profile.hatSteps.includes(step)) {
+      this.playHat(time + secondsPerBeat / 2 + (step % 2 === 0 ? secondsPerBeat * 0.025 : 0));
     }
 
     if (this.parameters.layerCount >= 2) {
-      this.playBass(time, [98, 130.81, 146.83, 130.81][beatNumber % 4]);
+      const bassFrequency = profile.bassPattern[step % profile.bassPattern.length];
+      if (bassFrequency > 0) {
+        this.playBass(time, bassFrequency, step % 4 === 0 ? 0.38 : 0.22);
+      }
     }
 
-    if (this.parameters.layerCount >= 3 && beatNumber % 2 === 0) {
-      this.playMelody(time, [196, 220, 261.63, 293.66, 329.63, 293.66, 261.63, 220][beatNumber % 8]);
+    if (this.parameters.layerCount >= 3 && step % 4 === 0) {
+      this.playChord(time, profile.chordProgression[Math.floor(step / 4) % profile.chordProgression.length], secondsPerBeat * 3.4);
+    }
+
+    if (this.parameters.layerCount >= 4 && step % profile.leadEvery === 0) {
+      const leadFrequency = profile.leadPhrase[step % profile.leadPhrase.length];
+      if (leadFrequency > 0) {
+        this.playLead(time, leadFrequency, secondsPerBeat * (profile === styleProfiles.chill ? 1.4 : 0.72));
+      }
     }
   }
 
-  private playPercussion(time: number, kind: "kick" | "snare"): void {
-    if (kind === "kick") {
-      this.playKick(time);
-      return;
-    }
-
+  private playSnare(time: number): void {
     const source = this.context.createBufferSource();
     const gain = this.context.createGain();
     const filter = this.context.createBiquadFilter();
@@ -239,16 +337,18 @@ export class DefaultStemPack {
     source.stop(time + 0.07);
   }
 
-  private playBass(time: number, frequency: number): void {
-    this.playTone(time, frequency, 0.28, "bass", "sawtooth", 0.28);
+  private playBass(time: number, frequency: number, volume: number): void {
+    this.playTone(time, frequency, 0.34, "bass", "triangle", volume);
   }
 
-  private playMelody(time: number, frequency: number): void {
-    const density = this.parameters.noteDensity;
-    if (density < 0.35 && this.beatNumber % 4 !== 0) {
-      return;
-    }
-    this.playTone(time, frequency, 0.22, "melody", "triangle", 0.18);
+  private playChord(time: number, frequencies: number[], duration: number): void {
+    frequencies.forEach((frequency, index) => {
+      this.playTone(time + index * 0.018, frequency, duration, "atmosphere", "triangle", 0.07);
+    });
+  }
+
+  private playLead(time: number, frequency: number, duration: number): void {
+    this.playTone(time, frequency, duration, "melody", "triangle", 0.07 + this.parameters.noteDensity * 0.06);
   }
 
   private playTone(
@@ -263,7 +363,11 @@ export class DefaultStemPack {
     const gain = this.context.createGain();
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, time);
-    oscillator.connect(gain).connect(this.layerGains.get(layer)!);
+    const filter = this.context.createBiquadFilter();
+    filter.type = layer === "bass" ? "lowpass" : "lowpass";
+    filter.frequency.setValueAtTime(layer === "bass" ? 480 : 1_100 + this.parameters.filterCutoff * 2_200, time);
+    filter.Q.setValueAtTime(layer === "bass" ? 0.6 : 0.45, time);
+    oscillator.connect(filter).connect(gain).connect(this.layerGains.get(layer)!);
     gain.gain.setValueAtTime(0.001, time);
     gain.gain.exponentialRampToValueAtTime(volume, time + 0.015);
     gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
@@ -272,7 +376,7 @@ export class DefaultStemPack {
   }
 
   private layerVolume(index: number): number {
-    return [0.8, 0.42, 0.32, 0.16][index] * (0.7 + this.parameters.noteDensity * 0.3);
+    return [0.72, 0.38, 0.22, 0.28][index] * (0.78 + this.parameters.noteDensity * 0.22);
   }
 
   private createNoiseBuffer(): AudioBuffer {

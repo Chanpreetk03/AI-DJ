@@ -24,6 +24,14 @@ public sealed class RoomAggregator
         }
     }
 
+    public void Remove(string clientId)
+    {
+        lock (sync)
+        {
+            clients.Remove(clientId);
+        }
+    }
+
     public RoomState GetState(long nowMilliseconds)
     {
         lock (sync)

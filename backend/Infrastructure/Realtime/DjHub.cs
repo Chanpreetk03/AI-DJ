@@ -29,6 +29,15 @@ public sealed class DjHub(RoomEngine roomEngine) : Hub
         await Clients.All.SendAsync("StatusUpdated", roomEngine.GetStatus());
     }
 
+    public async Task Leave()
+    {
+        roomEngine.RemoveConnection(Context.ConnectionId);
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "participant");
+        await Clients.Caller.SendAsync("Left", new { connectionId = Context.ConnectionId });
+        await Clients.All.SendAsync("RoomStateUpdated", roomEngine.GetSnapshot().State);
+        await Clients.All.SendAsync("StatusUpdated", roomEngine.GetStatus());
+    }
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         roomEngine.RemoveConnection(Context.ConnectionId);

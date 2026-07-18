@@ -66,5 +66,18 @@ public sealed class RoomEngineTests
         Assert.NotNull(status.LatestVibe);
     }
 
+    [Fact]
+    public void Removing_connection_removes_its_vibe_immediately()
+    {
+        var aggregator = new RoomAggregator();
+        var engine = new RoomEngine(aggregator, new VibeToMusicMapper());
+        engine.RegisterConnection("phone-1", "participant");
+        engine.AcceptVibe("phone-1", Vibe(1));
+
+        engine.RemoveConnection("phone-1");
+
+        Assert.Equal(0, engine.GetSnapshot().State.ActiveClients);
+    }
+
     private static VibeVector Vibe(double energy) => new(energy, energy, energy, energy * 4, 1_000);
 }
