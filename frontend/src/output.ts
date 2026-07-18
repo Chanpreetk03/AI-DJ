@@ -43,9 +43,13 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
   stemPack.setRoomState(state);
 });
 
-musicStyle.addEventListener("change", () => {
+function applyMusicSelection(): void {
   stemPack.setSelection(musicStyle.value as MusicSelection);
-});
+  djDecision.textContent = `Host requested ${musicStyle.selectedOptions[0].text}. AI will transition at the next safe phrase.`;
+}
+
+musicStyle.addEventListener("change", applyMusicSelection);
+musicStyle.addEventListener("input", applyMusicSelection);
 
 function animateSpeaker(): void {
   displayedEnergy += (targetEnergy - displayedEnergy) * 0.08;
