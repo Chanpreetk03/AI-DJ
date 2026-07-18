@@ -24,10 +24,13 @@ type Track = TrackDefinition & { profile?: TrackProfile };
 type Deck = {
   gain: GainNode;
   filter: BiquadFilterNode;
-  source: AudioBufferSourceNode;
+  sources: AudioBufferSourceNode[];
   track: Track;
   startedAt: number;
+  stemGains?: Map<StemId, GainNode>;
 };
+
+type StemId = "drums" | "bass" | "flute" | "melody";
 
 type Decision = {
   track: Track;
@@ -52,11 +55,19 @@ const tracks: Record<TrackId, Track> = {
   },
 };
 
+const glitchStems: Record<StemId, string> = {
+  drums: "/stems/glitch-stairs/StemDrums.ogg",
+  bass: "/stems/glitch-stairs/StemBass.ogg",
+  flute: "/stems/glitch-stairs/StemFlute.ogg",
+  melody: "/stems/glitch-stairs/StemMelody.ogg",
+};
+
 export class RealMusicDecks {
   private context!: AudioContext;
   private masterGain!: GainNode;
   private compressor!: DynamicsCompressorNode;
   private readonly buffers = new Map<TrackId, AudioBuffer>();
+  private readonly stemBuffers = new Map<StemId, AudioBuffer>();
   private activeDeck: Deck | undefined;
   private scheduledTrack: TrackId | undefined;
   private isInitialized = false;
@@ -145,6 +156,13 @@ export class RealMusicDecks {
       const buffer = await this.context.decodeAudioData(data);
       this.buffers.set(track.id, buffer);
       track.profile = this.analyze(buffer);
+    }
+    for (const [stemId, url] of Object.entries(glitchStems) as [StemId, string][]) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Could not load Glitch Stairs ${stemId} stem (${response.status})`);
+      }
+      this.stemBuffers.set(stemId, await this.context.decodeAudioData(await response.arrayBuffer()));
     }
     this.normalizeProfiles();
   }
@@ -281,19 +299,44 @@ export class RealMusicDecks {
   }
 
   private createDeck(track: Track, startAt: number, initialGain: number): Deck {
-    const source = this.context.createBufferSource();
-    source.buffer = this.buffers.get(track.id)!;
-    source.loop = true;
     const gain = this.context.createGain();
     gain.gain.setValueAtTime(initialGain, startAt);
     const filter = this.context.createBiquadFilter();
     filter.type = "lowpass";
     filter.Q.value = 0.5;
-    source.connect(filter).connect(gain).connect(this.masterGain);
-    source.start(startAt);
-    const deck = { gain, filter, source, track, startedAt: startAt };
+    gain.connect(this.masterGain);
+    const deck = track.id === "glitch-stairs"
+      ? this.createStemDeck(track, startAt, gain, filter)
+      : this.createFullTrackDeck(track, startAt, gain, filter);
     this.applyFilter(deck);
+    this.applyStemMix(deck);
     return deck;
+  }
+
+  private createFullTrackDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode): Deck {
+    const source = this.context.createBufferSource();
+    source.buffer = this.buffers.get(track.id)!;
+    source.loop = true;
+    source.connect(filter).connect(gain);
+    source.start(startAt);
+    return { gain, filter, sources: [source], track, startedAt: startAt };
+  }
+
+  private createStemDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode): Deck {
+    const stemGains = new Map<StemId, GainNode>();
+    const sources = (Object.keys(glitchStems) as StemId[]).map(stemId => {
+      const source = this.context.createBufferSource();
+      const stemGain = this.context.createGain();
+      source.buffer = this.stemBuffers.get(stemId)!;
+      source.loop = true;
+      stemGain.connect(filter);
+      source.connect(stemGain);
+      source.start(startAt);
+      stemGains.set(stemId, stemGain);
+      return source;
+    });
+    filter.connect(gain);
+    return { gain, filter, sources, track, startedAt: startAt, stemGains };
   }
 
   private crossfadeTo(track: Track, switchAt: number): void {
@@ -306,7 +349,7 @@ export class RealMusicDecks {
     outgoingDeck.gain.gain.linearRampToValueAtTime(0.001, fadeEndsAt);
     incomingDeck.gain.gain.setValueAtTime(0.001, switchAt);
     incomingDeck.gain.gain.linearRampToValueAtTime(this.targetGain(), fadeEndsAt);
-    outgoingDeck.source.stop(fadeEndsAt + 0.05);
+    outgoingDeck.sources.forEach(source => source.stop(fadeEndsAt + 0.05));
     window.setTimeout(() => {
       this.activeDeck = incomingDeck;
       this.scheduledTrack = undefined;
@@ -331,6 +374,7 @@ export class RealMusicDecks {
 
     const now = this.context.currentTime;
     this.applyFilter(this.activeDeck);
+    this.applyStemMix(this.activeDeck);
     this.activeDeck.gain.gain.cancelScheduledValues(now);
     this.activeDeck.gain.gain.linearRampToValueAtTime(this.targetGain(), now + 0.4);
   }
@@ -340,6 +384,24 @@ export class RealMusicDecks {
     const cutoff = 900 + this.parameters.filterCutoff * 10_000;
     deck.filter.frequency.cancelScheduledValues(now);
     deck.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.4);
+  }
+
+  private applyStemMix(deck: Deck): void {
+    if (deck.stemGains === undefined) {
+      return;
+    }
+
+    const now = this.context.currentTime;
+    const targets: Record<StemId, number> = {
+      drums: 0.92,
+      bass: this.parameters.layerCount >= 2 ? 0.76 : 0,
+      flute: this.parameters.layerCount >= 3 ? 0.18 + this.parameters.noteDensity * 0.18 : 0,
+      melody: this.parameters.layerCount >= 4 ? 0.22 + this.parameters.noteDensity * 0.22 : 0,
+    };
+    for (const [stemId, stemGain] of deck.stemGains) {
+      stemGain.gain.cancelScheduledValues(now);
+      stemGain.gain.linearRampToValueAtTime(targets[stemId], now + 0.5);
+    }
   }
 
   private targetGain(): number {
