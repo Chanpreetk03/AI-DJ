@@ -276,11 +276,11 @@ Make the mobile participant session recover gracefully from temporary network ch
 
 ### Acceptance criteria
 
-- [ ] Participant UI distinguishes connecting, connected, reconnecting, and disconnected states.
-- [ ] SignalR reconnect restores contribution without requiring a full page reload.
-- [ ] Page visibility changes pause and resume sensing safely.
-- [ ] Screen Wake Lock is requested where supported and failure is non-blocking.
-- [ ] Camera and microphone tracks are stopped when leaving the session.
+- [x] Participant UI distinguishes connecting, connected, reconnecting, and disconnected states.
+- [x] SignalR reconnect restores contribution without requiring a full page reload.
+- [x] Page visibility changes pause and resume sensing safely.
+- [x] Screen Wake Lock is requested where supported and failure is non-blocking.
+- [x] Camera and microphone tracks are stopped when leaving the session.
 
 ### Blocked by
 

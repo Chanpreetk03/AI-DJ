@@ -18,6 +18,19 @@ const palette = [
   { accent: "#ff8ec7", secondary: "#ff5c7a", glow: "#ff8ec744" },
 ];
 
+type ParticipantConnection = ReturnType<typeof createConnection>;
+type WakeLockSentinelLike = { release: () => Promise<void> };
+type WakeLockNavigator = Navigator & {
+  wakeLock?: { request: (type: "screen") => Promise<WakeLockSentinelLike> };
+};
+
+let participantConnection: ParticipantConnection | undefined;
+let participantStream: MediaStream | undefined;
+let sensorTimer: number | undefined;
+let participantAudioContext: AudioContext | undefined;
+let wakeLock: WakeLockSentinelLike | undefined;
+let isPageVisible = document.visibilityState === "visible";
+
 applyParticipantPalette();
 
 joinButton.addEventListener("click", async () => {
@@ -34,19 +47,42 @@ joinButton.addEventListener("click", async () => {
 
   try {
     const stream = await requestMediaStream();
+    participantStream = stream;
     camera.srcObject = stream;
     await camera.play();
+
     const connection = createConnection();
-    connection.onreconnecting(() => status.textContent = "Reconnecting…");
-    connection.onreconnected(() => status.textContent = `Connected as ${participantName}`);
-    connection.onclose(() => status.textContent = "Connection closed. Try joining again.");
+    participantConnection = connection;
+    connection.onreconnecting(() => {
+      status.textContent = "Connection interrupted — reconnecting…";
+      contribution.textContent = "Paused until the room connection returns";
+    });
+    connection.onreconnected(async () => {
+      try {
+        await connection.invoke("Join", "participant");
+        status.textContent = `Connected as ${participantName}`;
+        contribution.textContent = "Contributing local motion and sound features";
+        void requestWakeLock();
+      } catch (error) {
+        console.error(error);
+        status.textContent = "Reconnected, but could not rejoin the room.";
+        contribution.textContent = "Contribution paused — retrying connection";
+      }
+    });
+    connection.onclose(() => {
+      status.textContent = "Disconnected. Check your network and try again.";
+      contribution.textContent = "Contribution paused";
+    });
+
     await connection.start();
     await connection.invoke("Join", "participant");
     status.textContent = `Connected as ${participantName}`;
     contribution.textContent = "Contributing local motion and sound features";
+    await requestWakeLock();
     startSensorLoop(connection, stream);
   } catch (error) {
     console.error(error);
+    cleanupSession();
     status.textContent = describeJoinError(error);
     joinButton.disabled = false;
     nameInput.disabled = false;
@@ -84,7 +120,7 @@ function describeJoinError(error: unknown): string {
   return "Could not join. Check camera, microphone, and HTTPS permissions.";
 }
 
-function startSensorLoop(connection: ReturnType<typeof createConnection>, stream: MediaStream): void {
+function startSensorLoop(connection: ParticipantConnection, stream: MediaStream): void {
   const canvas = document.createElement("canvas");
   canvas.width = 64;
   canvas.height = 48;
@@ -96,18 +132,18 @@ function startSensorLoop(connection: ReturnType<typeof createConnection>, stream
     return;
   }
 
-  const audioContext = new AudioContextConstructor();
-  const analyser = audioContext.createAnalyser();
+  participantAudioContext = new AudioContextConstructor();
+  const analyser = participantAudioContext.createAnalyser();
   analyser.fftSize = 256;
-  audioContext.createMediaStreamSource(stream).connect(analyser);
-  void audioContext.resume();
+  participantAudioContext.createMediaStreamSource(stream).connect(analyser);
+  void participantAudioContext.resume();
   const audioData = new Uint8Array(analyser.fftSize);
   const cameraSensor = new FrameDifferenceSensor();
   const microphoneSensor = new MicrophoneFeatureSensor();
   let isSending = false;
 
-  window.setInterval(async () => {
-    if (isSending || camera.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+  sensorTimer = window.setInterval(async () => {
+    if (!isPageVisible || connection.state !== "Connected" || isSending || camera.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
       return;
     }
     isSending = true;
@@ -127,11 +163,74 @@ function startSensorLoop(connection: ReturnType<typeof createConnection>, stream
       await connection.invoke("SendVibe", vibe);
     } catch (error) {
       console.error(error);
-      status.textContent = "Connection lost — reconnecting…";
+      if (connection.state !== "Connected") {
+        status.textContent = "Connection interrupted — reconnecting…";
+        contribution.textContent = "Paused until the room connection returns";
+      }
     } finally {
       isSending = false;
     }
   }, 200);
+}
+
+document.addEventListener("visibilitychange", () => {
+  isPageVisible = document.visibilityState === "visible";
+  if (isPageVisible) {
+    void requestWakeLock();
+    if (participantConnection?.state === "Connected") {
+      contribution.textContent = "Contributing local motion and sound features";
+    }
+  } else {
+    void releaseWakeLock();
+    contribution.textContent = "Paused while this page is in the background";
+  }
+});
+
+window.addEventListener("pagehide", cleanupSession);
+window.addEventListener("beforeunload", cleanupSession);
+
+async function requestWakeLock(): Promise<void> {
+  if (!isPageVisible || wakeLock !== undefined) {
+    return;
+  }
+
+  const wakeLockNavigator = navigator as WakeLockNavigator;
+  if (wakeLockNavigator.wakeLock === undefined) {
+    return;
+  }
+
+  try {
+    wakeLock = await wakeLockNavigator.wakeLock.request("screen");
+  } catch {
+    // Wake Lock is an enhancement; sensing and reconnect still work without it.
+  }
+}
+
+async function releaseWakeLock(): Promise<void> {
+  const currentWakeLock = wakeLock;
+  wakeLock = undefined;
+  if (currentWakeLock !== undefined) {
+    await currentWakeLock.release().catch(() => undefined);
+  }
+}
+
+function cleanupSession(): void {
+  if (sensorTimer !== undefined) {
+    window.clearInterval(sensorTimer);
+    sensorTimer = undefined;
+  }
+  participantStream?.getTracks().forEach(track => track.stop());
+  participantStream = undefined;
+  camera.srcObject = null;
+  if (participantAudioContext !== undefined) {
+    void participantAudioContext.close().catch(() => undefined);
+    participantAudioContext = undefined;
+  }
+  void releaseWakeLock();
+  if (participantConnection !== undefined) {
+    void participantConnection.stop();
+    participantConnection = undefined;
+  }
 }
 
 function applyParticipantPalette(): void {
