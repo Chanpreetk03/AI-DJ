@@ -16,6 +16,23 @@
         <div><span>Layers</span><strong id="layers">1 / 4</strong></div>
         <div><span>Cutoff</span><strong id="cutoff">18%</strong></div>
       </div>
+      <section class="operator-status" aria-labelledby="operator-status-title">
+        <div class="operator-status-heading">
+          <div>
+            <p class="eyebrow">Operator view</p>
+            <h2 id="operator-status-title">Room health</h2>
+          </div>
+          <span id="signal-health" class="health-badge is-idle">No signal</span>
+        </div>
+        <div class="operator-grid">
+          <div class="operator-metric"><span>Participants</span><strong id="active-clients">0</strong></div>
+          <div class="operator-metric"><span>Coherence</span><strong id="coherence">100%</strong></div>
+          <div class="operator-metric"><span>Motion</span><strong id="motion">—</strong></div>
+          <div class="operator-metric"><span>Mic energy</span><strong id="audio-rms">—</strong></div>
+          <div class="operator-metric"><span>Onsets / sec</span><strong id="onset-rate">—</strong></div>
+          <div class="operator-metric"><span>Last update</span><strong id="last-update">Waiting</strong></div>
+        </div>
+      </section>
       <button id="start-audio" class="button">Start audio output</button>
       <p class="muted small">The Default Stem Pack uses four smoothly mixed layers. Audio playback requires one click in this tab.</p>
     </main>

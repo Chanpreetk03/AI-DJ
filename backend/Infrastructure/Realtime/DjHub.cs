@@ -24,6 +24,7 @@ public sealed class DjHub(RoomEngine roomEngine) : Hub
     {
         var snapshot = roomEngine.AcceptVibe(Context.ConnectionId, vibe);
         await Clients.Group("output").SendAsync("MusicParamsUpdated", snapshot.Parameters);
+        await Clients.Group("output").SendAsync("VibeVectorUpdated", snapshot.Vibe);
         await Clients.All.SendAsync("RoomStateUpdated", snapshot.State);
     }
 }

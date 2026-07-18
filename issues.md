@@ -161,12 +161,12 @@ Add an operator-facing status view so the team can see whether the demo is healt
 
 ## Acceptance criteria
 
-- [ ] Status view shows active client count.
-- [ ] Status view shows latest Vibe Vector values or simple meters.
-- [ ] Status view shows current Room State.
-- [ ] Status view shows current Music Parameters.
-- [ ] Status view shows whether the output tab is connected.
-- [ ] Status view makes stale/no-signal states obvious.
+- [x] Status view shows active client count.
+- [x] Status view shows latest Vibe Vector values or simple meters.
+- [x] Status view shows current Room State.
+- [x] Status view shows current Music Parameters.
+- [x] Status view shows whether the output tab is connected.
+- [x] Status view makes stale/no-signal states obvious.
 
 ## Blocked by
 
