@@ -36,3 +36,9 @@ Use only assets with licenses that allow bundling and redistribution in this rep
 3. Replace the oscillator pack with an `AudioBuffer` stem player.
 4. Add phrase-aligned crossfades and the five-state DJ policy.
 5. Add two additional packs once the first transition is polished.
+
+## Current library implementation
+
+The browser now loads `frontend/public/stems/music-library.json` as the source of truth for track metadata, stem roles, phrase length, musical key, tags, and licensing references. Stem packs can expose multiple phrase variants per role; the output-side DJ chooses a compatible variant from room energy, rhythm density, melodic activity, and recent play history before starting the next phrase.
+
+Adding a pack should therefore require a manifest entry and licensed assets, not edits to the audio decision code.

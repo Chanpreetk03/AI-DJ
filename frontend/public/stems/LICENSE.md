@@ -14,5 +14,6 @@
 
 ## Rhythm Factory
 
-- Add the original source URL and license before publishing the demo.
+- **Publishing blocked:** the original source URL and redistribution license have not been recorded yet.
+- Do not publish or distribute this asset until provenance is added here.
 - File: `rhythm_factory.wav`

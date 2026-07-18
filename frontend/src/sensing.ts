@@ -61,7 +61,7 @@ export class MicrophoneFeatureSensor {
     while (this.onsetTimes[0] !== undefined && this.onsetTimes[0] < now - 1_000) {
       this.onsetTimes.shift();
     }
-    return { audioRms, onsetRate: Math.min(this.onsetTimes.length / 4, 1) };
+    return { audioRms, onsetRate: Math.min(this.onsetTimes.length, 4) };
   }
 
   private calculateRms(data: Uint8Array): number {
