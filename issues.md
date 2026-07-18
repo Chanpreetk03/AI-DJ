@@ -218,13 +218,13 @@ Harden the MVP for live presentation. Document the HTTPS tunnel path, note the `
 
 ## Acceptance criteria
 
-- [ ] README documents HTTPS tunnel setup.
-- [ ] README documents `mkcert` as fallback or extension.
-- [ ] README includes demo run order for server, phone page, and output tab.
-- [ ] One real phone has been tested end-to-end.
-- [ ] Camera and microphone permission failure states have been checked.
+- [x] README documents HTTPS tunnel setup.
+- [x] README documents `mkcert` as fallback or extension.
+- [x] README includes demo run order for server, phone page, and output tab.
+- [x] One real phone has been tested end-to-end.
+- [x] Camera and microphone permission failure states have been checked.
 - [ ] Output audio has been tuned for low, medium, high, and peak energy.
-- [ ] Troubleshooting notes cover no camera, no mic, no SignalR connection, and no audio.
+- [x] Troubleshooting notes cover no camera, no mic, no SignalR connection, and no audio.
 
 ## Blocked by
 
