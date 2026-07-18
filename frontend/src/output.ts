@@ -23,6 +23,7 @@ const stemPack = new DefaultStemPack();
 const participantUrl = new URL("/participant.html", window.location.origin).toString();
 let targetEnergy = 0;
 let displayedEnergy = 0;
+let isStartingAudio = false;
 
 connection.on("MusicParamsUpdated", (params: MusicParams) => {
   tempo.textContent = `${Math.round(params.tempo)} BPM`;
@@ -86,7 +87,11 @@ copyInvite.addEventListener("click", async () => {
   window.setTimeout(() => copyInvite.textContent = "Copy invite link", 1600);
 });
 
-startAudio.addEventListener("click", async () => {
+async function startAudioOutput(): Promise<void> {
+  if (isStartingAudio || startAudio.disabled) {
+    return;
+  }
+  isStartingAudio = true;
   startAudio.disabled = true;
   startAudio.textContent = "Starting audio…";
   let timeoutId: number | undefined;
@@ -108,8 +113,12 @@ startAudio.addEventListener("click", async () => {
     if (timeoutId !== undefined) {
       window.clearTimeout(timeoutId);
     }
+    isStartingAudio = false;
   }
-});
+}
+
+startAudio.addEventListener("pointerup", () => void startAudioOutput());
+startAudio.addEventListener("click", () => void startAudioOutput());
 
 connect();
 

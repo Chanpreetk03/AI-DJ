@@ -9,6 +9,7 @@ h1 { font-size: clamp(2.5rem, 10vw, 5rem); line-height: .95; margin: .2em 0 .3em
 .small { font-size: .8rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
 .button { display: inline-block; border: 0; border-radius: 999px; padding: .9rem 1.25rem; color: #151219; background: #f2a7d6; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+.start-audio-button { position: relative; z-index: 20; pointer-events: auto; touch-action: manipulation; user-select: none; }
 .button.secondary { color: #f7f3ee; background: #302937; }
 .button:disabled { opacity: .55; cursor: default; }
 .status { color: #9ff0c3; min-height: 1.5em; margin: 1.5rem 0; }
