@@ -89,8 +89,14 @@ copyInvite.addEventListener("click", async () => {
 startAudio.addEventListener("click", async () => {
   startAudio.disabled = true;
   startAudio.textContent = "Starting audio…";
+  let timeoutId: number | undefined;
   try {
-    await stemPack.start();
+    await Promise.race([
+      stemPack.start(),
+      new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(() => reject(new Error("Audio startup timed out. Check the browser output device.")), 4_000);
+      }),
+    ]);
     startAudio.textContent = "Audio playing";
   } catch (error) {
     console.error(error);
@@ -98,6 +104,10 @@ startAudio.addEventListener("click", async () => {
     status.textContent = `Audio could not start: ${message}`;
     startAudio.textContent = "Try audio again";
     startAudio.disabled = false;
+  } finally {
+    if (timeoutId !== undefined) {
+      window.clearTimeout(timeoutId);
+    }
   }
 });
 
