@@ -64,6 +64,7 @@ video { width: 100%; max-height: 18rem; margin-top: 2rem; border-radius: 1.25rem
 .name-field input { width: 100%; border: .08rem solid #ffffff1d; border-radius: .8rem; padding: .9rem 1rem; outline: none; color: #fff; background: #1b1821; font: inherit; }
 .name-field input:focus { border-color: var(--participant-accent); box-shadow: 0 0 0 .2rem var(--participant-glow); }
 .participant-join-button { background: var(--participant-accent); box-shadow: 0 .6rem 2rem var(--participant-glow); }
+.participant-leave-button { margin-left: .5rem; }
 .participant-camera-stage { display: grid; place-items: center; min-height: 17rem; margin: 1rem 0 .5rem; }
 .participant-energy-ring { --participant-energy: 0; position: relative; display: grid; place-items: center; width: min(62vw, 250px); aspect-ratio: 1; border-radius: 50%; background: conic-gradient(var(--participant-accent) calc(var(--participant-energy) * 360deg), #2b2533 0); box-shadow: 0 0 3rem var(--participant-glow); transform: scale(calc(.96 + var(--participant-energy) * .06)); transition: transform .25s ease, box-shadow .25s ease; }
 .participant-energy-ring::before { content: ""; position: absolute; inset: .4rem; border-radius: inherit; background: #17141c; }

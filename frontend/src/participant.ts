@@ -4,6 +4,7 @@ import { FrameDifferenceSensor, MicrophoneFeatureSensor } from "./sensing";
 import "./styles.css";
 
 const joinButton = document.querySelector<HTMLButtonElement>("#join-button")!;
+const leaveButton = document.querySelector<HTMLButtonElement>("#leave-button")!;
 const nameInput = document.querySelector<HTMLInputElement>("#participant-name")!;
 const status = document.querySelector<HTMLElement>("#status")!;
 const contribution = document.querySelector<HTMLElement>("#contribution")!;
@@ -72,6 +73,7 @@ joinButton.addEventListener("click", async () => {
     connection.onclose(() => {
       status.textContent = "Disconnected. Check your network and try again.";
       contribution.textContent = "Contribution paused";
+      setJoinedUi(false);
     });
 
     await connection.start();
@@ -80,12 +82,32 @@ joinButton.addEventListener("click", async () => {
     contribution.textContent = "Contributing local motion and sound features";
     await requestWakeLock();
     startSensorLoop(connection, stream);
+    setJoinedUi(true);
   } catch (error) {
     console.error(error);
     cleanupSession();
     status.textContent = describeJoinError(error);
     joinButton.disabled = false;
     nameInput.disabled = false;
+    setJoinedUi(false);
+  }
+});
+
+leaveButton.addEventListener("click", async () => {
+  leaveButton.disabled = true;
+  status.textContent = "Leaving the room…";
+  try {
+    if (participantConnection?.state === "Connected") {
+      await participantConnection.invoke("Leave");
+    }
+  } catch (error) {
+    console.error(error);
+  } finally {
+    cleanupSession();
+    status.textContent = "You left the room.";
+    contribution.textContent = "Camera and microphone are stopped";
+    setJoinedUi(false);
+    leaveButton.disabled = false;
   }
 });
 
@@ -231,6 +253,12 @@ function cleanupSession(): void {
     void participantConnection.stop();
     participantConnection = undefined;
   }
+}
+
+function setJoinedUi(isJoined: boolean): void {
+  joinButton.hidden = isJoined;
+  leaveButton.hidden = !isJoined;
+  nameInput.disabled = isJoined;
 }
 
 function applyParticipantPalette(): void {
