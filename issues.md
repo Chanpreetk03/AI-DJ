@@ -237,3 +237,151 @@ Both
 ## User stories covered
 
 11, 12, 26, 27, 28
+
+---
+
+# Post-MVP Feature Backlog
+
+These issues are intentionally scheduled after Issue 8. They extend the demo without weakening the one-phone MVP control loop.
+
+## Issue 9: Multi-Participant Room Validation
+
+### What to build
+
+Validate and tune the room with multiple simultaneous contributors. Use synthetic clients where extra phones are unavailable, plus the one available real phone for hardware coverage.
+
+### Acceptance criteria
+
+- [ ] Three synthetic contributors can connect and send Vibe Vectors concurrently.
+- [ ] One real phone plus synthetic contributors produce sensible `activeClients`, `energy`, and `coherence` values.
+- [ ] A disconnected contributor stops affecting the room after the stale timeout.
+- [ ] Music Parameters remain stable when contributors hover near layer thresholds.
+- [ ] README includes a repeatable multi-client rehearsal command or procedure.
+
+### Blocked by
+
+- Issue 8
+
+### Priority
+
+High — validates the product promise beyond the single-phone MVP.
+
+---
+
+## Issue 10: Participant Reconnect and Screen-Lock Resilience
+
+### What to build
+
+Make the mobile participant session recover gracefully from temporary network changes, backgrounding, and screen locking.
+
+### Acceptance criteria
+
+- [ ] Participant UI distinguishes connecting, connected, reconnecting, and disconnected states.
+- [ ] SignalR reconnect restores contribution without requiring a full page reload.
+- [ ] Page visibility changes pause and resume sensing safely.
+- [ ] Screen Wake Lock is requested where supported and failure is non-blocking.
+- [ ] Camera and microphone tracks are stopped when leaving the session.
+
+### Blocked by
+
+- Issue 8
+
+### Priority
+
+High — directly reduces live-demo failure risk.
+
+---
+
+## Issue 11: Dedicated Booth Device Controller
+
+### What to build
+
+Move fallback control into a separate clearly labeled Booth Device page so the output tab remains focused on audio and monitoring. The controller should send synthetic Vibe Vectors through the same SignalR hub path.
+
+### Acceptance criteria
+
+- [ ] `booth.html` connects as a labeled Booth Device Mode client.
+- [ ] Operator can select quiet, warming, active, peak, and cooldown states.
+- [ ] Operator can manually adjust energy for fine-grained rehearsal.
+- [ ] Booth input updates the same Room State and Music Parameters as phone input.
+- [ ] The page clearly warns that it is fallback mode, not Audience Phone Mode.
+
+### Blocked by
+
+- Issue 7
+
+### Priority
+
+Medium — improves rescue flow and separates operator responsibilities.
+
+---
+
+## Issue 12: Beat-Aware Audio Transitions
+
+### What to build
+
+Improve musical continuity by applying parameter changes on beat or bar boundaries with smoothing and threshold hysteresis.
+
+### Acceptance criteria
+
+- [ ] Tempo, filter, gain, and layer changes use scheduled ramps or beat boundaries.
+- [ ] Rapid sensor fluctuations do not cause audible layer thrashing.
+- [ ] Quiet-to-peak and peak-to-cooldown transitions remain musically coherent.
+- [ ] A RecordingSynthesizer-style adapter captures parameter scheduling for deterministic tests.
+- [ ] Manual listening confirms no obvious clicks or pops across all energy states.
+
+### Blocked by
+
+- Issue 8
+
+### Priority
+
+High — improves the perceived quality of the core experience.
+
+---
+
+## Issue 13: Session and Invite Lifecycle
+
+### What to build
+
+Add explicit host session controls so a demo can start a fresh room, display a stable invite link, and end a room without stale participants carrying over.
+
+### Acceptance criteria
+
+- [ ] Host can create and end a session.
+- [ ] Invite QR and copied link identify the active session.
+- [ ] Participants see a clear expired-session state.
+- [ ] Ending a session clears active contributors and resets output state.
+- [ ] A new session starts with neutral Room State and default Music Parameters.
+
+### Blocked by
+
+- Issue 8
+
+### Priority
+
+Medium — makes repeated demos safer and easier to operate.
+
+---
+
+## Issue 14: Participant Accessibility and Consent Polish
+
+### What to build
+
+Make the participant experience understandable and usable across mobile browsers without weakening the privacy boundary.
+
+### Acceptance criteria
+
+- [ ] Permission screen explains camera/microphone purpose and confirms Raw Media stays on-device.
+- [ ] Join, retry, reconnect, and contribution states are accessible to screen readers.
+- [ ] All controls are keyboard/focus accessible on desktop browsers.
+- [ ] Reduced-motion mode disables nonessential animations.
+- [ ] Small-screen layouts remain usable in portrait orientation.
+
+### Blocked by
+
+- Issue 8
+
+### Priority
+
+Medium — improves trust, clarity, and reach.
