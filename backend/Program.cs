@@ -6,8 +6,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
 builder.Services.AddCors(options =>
 {
+    var configuredOrigins = builder.Configuration["FRONTEND_ORIGINS"]?
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        ?? ["http://localhost:5173", "https://localhost:5173"];
+
     options.AddPolicy("Frontend", policy => policy
-        .WithOrigins("http://localhost:5173", "https://localhost:5173")
+        .WithOrigins(configuredOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
         .AllowCredentials());
