@@ -39,12 +39,12 @@ Build the dedicated output browser tab that plays the Default Stem Pack and reac
 
 ## Acceptance criteria
 
-- [ ] One bundled royalty-free Default Stem Pack is available to the output tab.
-- [ ] Output tab can start audio playback after user interaction.
-- [ ] At least three layers can be controlled independently, such as percussion, bass, melody, or atmosphere.
-- [ ] Music Parameters affect audible output through layer count, filtering, or intensity.
-- [ ] Parameter changes use ramps or scheduling to avoid obvious clicks/pops.
-- [ ] Output remains listenable in low, medium, high, and peak states.
+- [x] One bundled royalty-free Default Stem Pack is available to the output tab.
+- [x] Output tab can start audio playback after user interaction.
+- [x] At least three layers can be controlled independently, such as percussion, bass, melody, or atmosphere.
+- [x] Music Parameters affect audible output through layer count, filtering, or intensity.
+- [x] Parameter changes use ramps or scheduling to avoid obvious clicks/pops.
+- [x] Output remains listenable in low, medium, high, and peak states.
 
 ## Blocked by
 
@@ -68,14 +68,14 @@ Build the participant mobile page that asks for camera and microphone permission
 
 ## Acceptance criteria
 
-- [ ] Phone browser requests camera and microphone access.
-- [ ] Client computes camera-derived `motion` using Frame Differencing.
-- [ ] Client computes `motionVariance` from recent motion samples.
-- [ ] Client computes microphone-derived `audioRms`.
-- [ ] Client computes a rough `onsetRate`.
-- [ ] Client sends Vibe Vectors to the SignalR hub at roughly 5 Hz.
-- [ ] No Raw Media is sent to the server.
-- [ ] Page shows permission, connection, and contribution feedback.
+- [x] Phone browser requests camera and microphone access.
+- [x] Client computes camera-derived `motion` using Frame Differencing.
+- [x] Client computes `motionVariance` from recent motion samples.
+- [x] Client computes microphone-derived `audioRms`.
+- [x] Client computes a rough `onsetRate`.
+- [x] Client sends Vibe Vectors to the SignalR hub at roughly 5 Hz.
+- [x] No Raw Media is sent to the server.
+- [x] Page shows permission, connection, and contribution feedback.
 
 ## Blocked by
 
