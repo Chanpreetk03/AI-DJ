@@ -84,9 +84,16 @@ export class DefaultStemPack {
 
   private applyParameters(): void {
     const now = this.context.currentTime;
-    const cutoff = 300 + this.parameters.filterCutoff * 9_000;
+    const cutoff = 450 + this.parameters.filterCutoff * 7_500;
     this.filter.frequency.cancelScheduledValues(now);
     this.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.25);
+    this.masterGain.gain.cancelScheduledValues(now);
+    this.masterGain.gain.linearRampToValueAtTime(0.22 + this.parameters.noteDensity * 0.3, now + 0.25);
+
+    if (this.atmosphereOscillator !== undefined) {
+      this.atmosphereOscillator.frequency.cancelScheduledValues(now);
+      this.atmosphereOscillator.frequency.linearRampToValueAtTime(70 + this.parameters.tempo * 0.65, now + 0.35);
+    }
 
     layerOrder.forEach((layer, index) => {
       const gain = this.layerGains.get(layer)!;

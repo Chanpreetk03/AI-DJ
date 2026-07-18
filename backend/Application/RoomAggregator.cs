@@ -39,9 +39,10 @@ public sealed class RoomAggregator
             }
 
             var energies = active.Select(vibe =>
-                (vibe.Motion * 0.45) +
-                (vibe.AudioRms * 0.35) +
-                (Math.Min(vibe.OnsetRate / 8, 1) * 0.20)).ToArray();
+                (BoostLowSignal(vibe.Motion) * 0.40) +
+                (BoostLowSignal(vibe.MotionVariance) * 0.20) +
+                (BoostLowSignal(vibe.AudioRms) * 0.25) +
+                (Math.Min(vibe.OnsetRate / 4, 1) * 0.15)).ToArray();
             var averageEnergy = energies.Average();
             var average = active.Average(vibe => vibe.Motion);
             var variance = active.Average(vibe => Math.Pow(vibe.Motion - average, 2));
@@ -52,6 +53,8 @@ public sealed class RoomAggregator
     }
 
     private static double Clamp(double value) => Math.Clamp(value, 0, 1);
+
+    private static double BoostLowSignal(double value) => Math.Sqrt(Clamp(value));
 
     private sealed record ClientVibe(VibeVector Vibe, long LastSeenMilliseconds);
 }
