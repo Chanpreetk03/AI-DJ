@@ -41,8 +41,20 @@ video { width: 100%; max-height: 18rem; margin-top: 2rem; border-radius: 1.25rem
 .room-header h1 { font-size: clamp(2.6rem, 7vw, 5rem); }
 .invite-button { white-space: nowrap; }
 .speaker-stage { position: relative; display: grid; place-items: center; min-height: min(54vw, 430px); margin: 1rem 0 0; }
+.speaker-stage::before { content: ""; position: absolute; inset: 0 -20vw; background: linear-gradient(115deg, transparent 35%, #f2a7d60b 50%, transparent 65%); transform: translateX(-100%); animation: stage-sweep 7s ease-in-out infinite; pointer-events: none; }
+.stage-grid { position: absolute; inset: 0 -20vw; opacity: .18; background-image: linear-gradient(#f2a7d60d 1px, transparent 1px), linear-gradient(90deg, #f2a7d60d 1px, transparent 1px); background-size: 3rem 3rem; transform: perspective(380px) rotateX(58deg) translateY(30%); mask-image: linear-gradient(to bottom, transparent, #000 35%, transparent); animation: grid-drift 5s linear infinite; }
+.orbit { position: absolute; width: min(70vw, 390px); aspect-ratio: 1; border: 1px solid #f2a7d622; border-radius: 50%; transform: translate(var(--pointer-x, 0), var(--pointer-y, 0)) rotateX(64deg) rotateZ(-18deg); transition: transform .4s cubic-bezier(.22, 1, .36, 1); }
+.orbit::after { content: ""; position: absolute; top: -3px; left: 50%; width: 6px; height: 6px; border-radius: 50%; background: #f2a7d6; box-shadow: 0 0 1rem #f2a7d6; }
+.orbit-one { animation: orbit-spin 11s linear infinite; }
+.orbit-two { width: min(55vw, 300px); border-color: #8c79ff30; animation: orbit-spin-reverse 8s linear infinite; }
+.equalizer { position: absolute; bottom: 3%; left: 50%; display: flex; align-items: end; gap: .25rem; height: 3rem; transform: translateX(-50%); opacity: calc(.28 + var(--room-energy, 0) * .72); transition: opacity .4s ease; }
+.equalizer i { display: block; width: .3rem; height: 30%; border-radius: .4rem; background: linear-gradient(#f2a7d6, #8c79ff); animation: equalizer-bounce var(--pulse-duration, 1.2s) ease-in-out infinite alternate; }
+.equalizer i:nth-child(2), .equalizer i:nth-child(8) { animation-delay: -.3s; }
+.equalizer i:nth-child(3), .equalizer i:nth-child(7) { animation-delay: -.6s; }
+.equalizer i:nth-child(4), .equalizer i:nth-child(6) { animation-delay: -.15s; }
+.equalizer i:nth-child(5) { height: 70%; animation-delay: -.45s; }
 .speaker-glow { position: absolute; width: min(72vw, 360px); aspect-ratio: 1; border-radius: 50%; background: #f2a7d6; opacity: calc(.08 + var(--room-energy, 0) * .22); filter: blur(48px); transform: scale(calc(.78 + var(--room-energy, 0) * .32)); transition: opacity .4s ease, transform .4s ease; }
-.speaker { --room-energy: 0; --pulse-duration: 1.2s; position: relative; width: min(60vw, 280px); aspect-ratio: 1 / 1.16; padding-top: 1rem; border-radius: 22% 22% 12% 12%; background: linear-gradient(135deg, #3a3047, #121017 72%); box-shadow: 0 2rem 4rem #0008, inset .2rem .2rem .5rem #ffffff18; transform: scale(calc(.9 + var(--room-energy) * .12)); transition: transform .45s cubic-bezier(.22, 1, .36, 1); }
+.speaker { --room-energy: 0; --pulse-duration: 1.2s; position: relative; width: min(60vw, 280px); aspect-ratio: 1 / 1.16; padding-top: 1rem; border-radius: 22% 22% 12% 12%; background: linear-gradient(135deg, #3a3047, #121017 72%); box-shadow: 0 2rem 4rem #0008, inset .2rem .2rem .5rem #ffffff18; transform: translate(var(--pointer-x, 0), var(--pointer-y, 0)) scale(calc(.9 + var(--room-energy) * .12)); transition: transform .45s cubic-bezier(.22, 1, .36, 1); }
 .speaker::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 .08rem #ffffff12; pointer-events: none; }
 .speaker-cone { position: absolute; left: 50%; border-radius: 50%; transform: translateX(-50%); background: radial-gradient(circle at 38% 32%, #98718d, #281e30 48%, #09080d 52%, #58475e 56%, #0f0c13 61%); box-shadow: 0 .6rem 1rem #0009, inset .1rem .1rem .15rem #fff3; animation: speaker-pulse var(--pulse-duration) ease-in-out infinite; }
 .speaker-cone-large { top: 31%; width: 48%; aspect-ratio: 1; }
@@ -65,6 +77,11 @@ video { width: 100%; max-height: 18rem; margin-top: 2rem; border-radius: 1.25rem
 @keyframes drift { from { transform: translate3d(-1rem, -1rem, 0) scale(.9); } to { transform: translate3d(1rem, 1rem, 0) scale(1.1); } }
 @keyframes cta-pulse { 0%, 100% { box-shadow: 0 0 0 0 #f2a7d600; } 50% { box-shadow: 0 0 0 .7rem #f2a7d60d; } }
 @keyframes speaker-pulse { 0%, 100% { transform: translateX(-50%) scale(calc(.96 + var(--room-energy) * .02)); } 50% { transform: translateX(-50%) scale(calc(1 + var(--room-energy) * .09)); } }
+@keyframes stage-sweep { 0%, 20% { transform: translateX(-100%); } 55%, 100% { transform: translateX(100%); } }
+@keyframes grid-drift { from { background-position: 0 0; } to { background-position: 0 3rem; } }
+@keyframes orbit-spin { from { rotate: 0deg; } to { rotate: 360deg; } }
+@keyframes orbit-spin-reverse { from { rotate: 360deg; } to { rotate: 0deg; } }
+@keyframes equalizer-bounce { from { height: 18%; } to { height: 82%; } }
 
 @media (max-width: 560px) { .room-header { align-items: start; flex-direction: column; gap: .5rem; } .room-header h1 { margin-top: .5rem; } .speaker-stage { min-height: 82vw; } .stats { gap: .4rem; } .stats div { padding: .8rem .25rem; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }

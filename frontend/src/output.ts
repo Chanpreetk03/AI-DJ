@@ -6,6 +6,7 @@ import "./styles.css";
 
 const status = document.querySelector<HTMLElement>("#status")!;
 const speaker = document.querySelector<HTMLElement>("#speaker")!;
+const speakerStage = document.querySelector<HTMLElement>(".speaker-stage")!;
 const energyValue = document.querySelector<HTMLElement>("#energy-value")!;
 const tempo = document.querySelector<HTMLElement>("#tempo")!;
 const layers = document.querySelector<HTMLElement>("#layers")!;
@@ -37,6 +38,8 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
 function animateSpeaker(): void {
   displayedEnergy += (targetEnergy - displayedEnergy) * 0.08;
   const energyPercent = Math.round(displayedEnergy * 100);
+  speakerStage.style.setProperty("--room-energy", `${displayedEnergy}`);
+  speakerStage.style.setProperty("--pulse-duration", `${Math.max(0.35, 1.2 - displayedEnergy * 0.8)}s`);
   speaker.style.setProperty("--room-energy", `${displayedEnergy}`);
   speaker.style.setProperty("--pulse-duration", `${Math.max(0.35, 1.2 - displayedEnergy * 0.8)}s`);
   energyValue.textContent = `${energyPercent}%`;
@@ -44,6 +47,19 @@ function animateSpeaker(): void {
 }
 
 animateSpeaker();
+
+speakerStage.addEventListener("pointermove", event => {
+  const bounds = speakerStage.getBoundingClientRect();
+  const x = (event.clientX - bounds.left) / bounds.width - 0.5;
+  const y = (event.clientY - bounds.top) / bounds.height - 0.5;
+  speakerStage.style.setProperty("--pointer-x", `${x * 12}px`);
+  speakerStage.style.setProperty("--pointer-y", `${y * 8}px`);
+});
+
+speakerStage.addEventListener("pointerleave", () => {
+  speakerStage.style.setProperty("--pointer-x", "0px");
+  speakerStage.style.setProperty("--pointer-y", "0px");
+});
 
 inviteButton.addEventListener("click", async () => {
   inviteModal.hidden = false;
