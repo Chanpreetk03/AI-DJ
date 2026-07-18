@@ -324,8 +324,8 @@ Improve musical continuity by applying parameter changes on beat or bar boundari
 
 ### Acceptance criteria
 
-- [ ] Tempo, filter, gain, and layer changes use scheduled ramps or beat boundaries.
-- [ ] Rapid sensor fluctuations do not cause audible layer thrashing.
+- [x] Tempo, filter, gain, and layer changes use scheduled ramps or beat boundaries.
+- [x] Rapid sensor fluctuations do not cause audible layer thrashing.
 - [ ] Quiet-to-peak and peak-to-cooldown transitions remain musically coherent.
 - [ ] A RecordingSynthesizer-style adapter captures parameter scheduling for deterministic tests.
 - [ ] Manual listening confirms no obvious clicks or pops across all energy states.

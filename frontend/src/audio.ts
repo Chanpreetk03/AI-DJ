@@ -18,6 +18,10 @@ export class DefaultStemPack {
     noteDensity: 0.15,
     layerCount: 1,
   };
+  private pendingParameters: MusicParams | undefined;
+  private stableLayerCount = 1;
+  private requestedLayerCount = 1;
+  private requestedLayerRepeats = 0;
   private timer: number | undefined;
   private nextBeatAt = 0;
   private beatNumber = 0;
@@ -40,7 +44,7 @@ export class DefaultStemPack {
       this.atmosphereOscillator.connect(this.layerGains.get("atmosphere")!);
       this.atmosphereOscillator.start();
     }
-    this.applyParameters();
+    this.applyParametersAt(this.context.currentTime);
     this.nextBeatAt = this.context.currentTime + 0.05;
     this.beatNumber = 0;
     if (this.timer === undefined) {
@@ -49,10 +53,17 @@ export class DefaultStemPack {
   }
 
   public setParameters(parameters: MusicParams): void {
-    this.parameters = parameters;
-    if (this.isInitialized) {
-      this.applyParameters();
+    if (!this.isInitialized) {
+      this.parameters = parameters;
+      this.stableLayerCount = parameters.layerCount;
+      this.requestedLayerCount = parameters.layerCount;
+      this.requestedLayerRepeats = 0;
+      return;
     }
+
+    const stableLayerCount = this.resolveStableLayerCount(parameters.layerCount);
+    this.parameters = { ...parameters, layerCount: stableLayerCount };
+    this.pendingParameters = this.parameters;
   }
 
   private initializeAudioGraph(): void {
@@ -82,8 +93,8 @@ export class DefaultStemPack {
     this.isInitialized = true;
   }
 
-  private applyParameters(): void {
-    const now = this.context.currentTime;
+  private applyParametersAt(startTime: number): void {
+    const now = Math.max(startTime, this.context.currentTime);
     const cutoff = 450 + this.parameters.filterCutoff * 7_500;
     this.filter.frequency.cancelScheduledValues(now);
     this.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.25);
@@ -101,6 +112,27 @@ export class DefaultStemPack {
       gain.gain.cancelScheduledValues(now);
       gain.gain.linearRampToValueAtTime(target, now + 0.2);
     });
+  }
+
+  private resolveStableLayerCount(requestedLayerCount: number): number {
+    if (requestedLayerCount === this.stableLayerCount) {
+      this.requestedLayerRepeats = 0;
+      return this.stableLayerCount;
+    }
+
+    if (requestedLayerCount !== this.requestedLayerCount) {
+      this.requestedLayerCount = requestedLayerCount;
+      this.requestedLayerRepeats = 1;
+    } else {
+      this.requestedLayerRepeats += 1;
+    }
+
+    if (this.requestedLayerRepeats >= 2) {
+      this.stableLayerCount = requestedLayerCount;
+      this.requestedLayerRepeats = 0;
+    }
+
+    return this.stableLayerCount;
   }
 
   private playStartupTone(): void {
@@ -132,6 +164,12 @@ export class DefaultStemPack {
   }
 
   private scheduleBeat(time: number, beatNumber: number): void {
+    if (this.pendingParameters !== undefined) {
+      this.parameters = this.pendingParameters;
+      this.pendingParameters = undefined;
+      this.applyParametersAt(time);
+    }
+
     if (beatNumber % 2 === 0) {
       this.playPercussion(time, "kick");
     } else {
