@@ -18,3 +18,14 @@ export type MusicParams = {
   noteDensity: number;
   layerCount: number;
 };
+
+export type DemoStatus = {
+  roomState: RoomState;
+  musicParams: MusicParams;
+  connectedClients: number;
+  participantClients: number;
+  outputConnected: boolean;
+  latestSource: string | null;
+  latestVibe: VibeVector | null;
+  latestVibeAgeMilliseconds: number | null;
+};

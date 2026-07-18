@@ -103,3 +103,12 @@ video { width: 100%; max-height: 18rem; margin-top: 2rem; border-radius: 1.25rem
 
 @media (max-width: 560px) { .room-header { align-items: start; flex-direction: column; gap: .5rem; } .room-header h1 { margin-top: .5rem; } .speaker-stage { min-height: 82vw; } .stats { gap: .4rem; } .stats div { padding: .8rem .25rem; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+.dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .7rem; margin: 2rem 0 .7rem; }
+.status-card { display: grid; gap: .5rem; padding: 1rem; border-radius: 1rem; background: #1b1821; }
+.status-card.wide { margin-top: .7rem; }
+.status-card span { color: #aaa1b1; font-size: .75rem; }
+.status-card strong { font-size: 1.3rem; }
+.good { color: #9ff0c3; }
+.bad { color: #ff9eae; }
+.hidden { display: none; }
+input[type="range"] { width: 100%; accent-color: #f2a7d6; }

@@ -20,6 +20,7 @@ var app = builder.Build();
 
 app.UseCors("Frontend");
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "ai-dj-api" }));
+app.MapGet("/api/status", (RoomEngine roomEngine) => Results.Ok(roomEngine.GetStatus()));
 app.MapHub<DjHub>("/hubs/dj");
 
 app.Run();
