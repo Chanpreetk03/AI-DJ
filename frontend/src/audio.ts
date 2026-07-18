@@ -5,12 +5,13 @@ type AudioLayer = "percussion" | "bass" | "melody" | "atmosphere";
 const layerOrder: AudioLayer[] = ["percussion", "bass", "melody", "atmosphere"];
 
 export class DefaultStemPack {
-  private readonly context = new AudioContext();
-  private readonly masterGain = this.context.createGain();
-  private readonly filter = this.context.createBiquadFilter();
+  private context!: AudioContext;
+  private masterGain!: GainNode;
+  private filter!: BiquadFilterNode;
   private readonly layerGains = new Map<AudioLayer, GainNode>();
-  private readonly noiseBuffer: AudioBuffer;
+  private noiseBuffer!: AudioBuffer;
   private atmosphereOscillator: OscillatorNode | undefined;
+  private isInitialized = false;
   private parameters: MusicParams = {
     tempo: 92,
     filterCutoff: 0.18,
@@ -21,7 +22,48 @@ export class DefaultStemPack {
   private nextBeatAt = 0;
   private beatNumber = 0;
 
-  public constructor() {
+  public async start(): Promise<void> {
+    if (!this.isInitialized) {
+      this.initializeAudioGraph();
+    }
+
+    await this.context.resume();
+    if (this.context.state !== "running") {
+      throw new Error(`Audio context did not start: ${this.context.state}`);
+    }
+
+    if (this.atmosphereOscillator === undefined) {
+      this.atmosphereOscillator = this.context.createOscillator();
+      this.atmosphereOscillator.type = "sine";
+      this.atmosphereOscillator.frequency.value = 110;
+      this.atmosphereOscillator.connect(this.layerGains.get("atmosphere")!);
+      this.atmosphereOscillator.start();
+    }
+    this.applyParameters();
+    this.nextBeatAt = this.context.currentTime + 0.05;
+    this.beatNumber = 0;
+    if (this.timer === undefined) {
+      this.timer = window.setInterval(() => this.scheduleUpcomingBeat(), 40);
+    }
+  }
+
+  public setParameters(parameters: MusicParams): void {
+    this.parameters = parameters;
+    if (this.isInitialized) {
+      this.applyParameters();
+    }
+  }
+
+  private initializeAudioGraph(): void {
+    const AudioContextConstructor = window.AudioContext ??
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (AudioContextConstructor === undefined) {
+      throw new Error("This browser does not support Web Audio");
+    }
+
+    this.context = new AudioContextConstructor();
+    this.masterGain = this.context.createGain();
+    this.filter = this.context.createBiquadFilter();
     this.filter.type = "lowpass";
     this.filter.Q.value = 0.7;
     this.filter.connect(this.masterGain);
@@ -35,34 +77,19 @@ export class DefaultStemPack {
       gain.connect(this.filter);
       this.layerGains.set(layer, gain);
     });
+
+    this.isInitialized = true;
   }
 
-  public async start(): Promise<void> {
-    await this.context.resume();
-    if (this.atmosphereOscillator === undefined) {
-      this.atmosphereOscillator = this.context.createOscillator();
-      this.atmosphereOscillator.type = "sine";
-      this.atmosphereOscillator.frequency.value = 110;
-      this.atmosphereOscillator.connect(this.layerGains.get("atmosphere")!);
-      this.atmosphereOscillator.start();
-    }
-    this.nextBeatAt = this.context.currentTime + 0.05;
-    this.beatNumber = 0;
-    if (this.timer === undefined) {
-      this.timer = window.setInterval(() => this.scheduleUpcomingBeat(), 40);
-    }
-  }
-
-  public setParameters(parameters: MusicParams): void {
-    this.parameters = parameters;
+  private applyParameters(): void {
     const now = this.context.currentTime;
-    const cutoff = 300 + parameters.filterCutoff * 9_000;
+    const cutoff = 300 + this.parameters.filterCutoff * 9_000;
     this.filter.frequency.cancelScheduledValues(now);
     this.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.25);
 
     layerOrder.forEach((layer, index) => {
       const gain = this.layerGains.get(layer)!;
-      const target = index < parameters.layerCount ? this.layerVolume(index) : 0;
+      const target = index < this.parameters.layerCount ? this.layerVolume(index) : 0;
       gain.gain.cancelScheduledValues(now);
       gain.gain.linearRampToValueAtTime(target, now + 0.2);
     });

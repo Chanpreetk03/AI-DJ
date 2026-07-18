@@ -27,13 +27,16 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
 });
 
 startAudio.addEventListener("click", async () => {
+  startAudio.disabled = true;
+  startAudio.textContent = "Starting audio…";
   try {
     await stemPack.start();
     startAudio.textContent = "Audio playing";
-    startAudio.disabled = true;
   } catch (error) {
     console.error(error);
     status.textContent = "Audio could not start. Check browser permissions.";
+    startAudio.textContent = "Try audio again";
+    startAudio.disabled = false;
   }
 });
 
