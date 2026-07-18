@@ -1,4 +1,5 @@
 import { createConnection } from "./connection";
+import { DefaultStemPack } from "./audio";
 import type { MusicParams, RoomState } from "./protocol";
 import "./styles.css";
 
@@ -10,11 +11,13 @@ const layers = document.querySelector<HTMLElement>("#layers")!;
 const cutoff = document.querySelector<HTMLElement>("#cutoff")!;
 const startAudio = document.querySelector<HTMLButtonElement>("#start-audio")!;
 const connection = createConnection();
+const stemPack = new DefaultStemPack();
 
 connection.on("MusicParamsUpdated", (params: MusicParams) => {
   tempo.textContent = `${Math.round(params.tempo)} BPM`;
   layers.textContent = `${params.layerCount} / 4`;
   cutoff.textContent = `${Math.round(params.filterCutoff * 100)}%`;
+  stemPack.setParameters(params);
 });
 
 connection.on("RoomStateUpdated", (state: RoomState) => {
@@ -23,9 +26,15 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
   energyRing.style.setProperty("--energy", `${energy}%`);
 });
 
-startAudio.addEventListener("click", () => {
-  startAudio.textContent = "Audio ready";
-  startAudio.disabled = true;
+startAudio.addEventListener("click", async () => {
+  try {
+    await stemPack.start();
+    startAudio.textContent = "Audio playing";
+    startAudio.disabled = true;
+  } catch (error) {
+    console.error(error);
+    status.textContent = "Audio could not start. Check browser permissions.";
+  }
 });
 
 connect();
