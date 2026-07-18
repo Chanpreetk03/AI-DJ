@@ -26,7 +26,7 @@ The participant page requires a secure browser context for camera and microphone
 
 ## Real phone control loop
 
-The phone demo needs two public HTTPS URLs: one for the Vite frontend and one for the ASP.NET backend. Start a tunnel for the frontend's HTTP port `5173` and another for the backend's HTTPS port `5001`.
+The phone demo needs one public HTTPS URL for the Vite frontend. Vite proxies SignalR traffic from `/hubs/dj` to the local ASP.NET backend, so a second public backend tunnel is not required.
 
 Create and trust the local ASP.NET development certificate once:
 
@@ -34,21 +34,23 @@ Create and trust the local ASP.NET development certificate once:
 dotnet dev-certs https --trust
 ```
 
-Start the backend with the HTTPS profile and the public frontend origin allowed by CORS:
+Start the backend locally:
 
 ```powershell
-$env:FRONTEND_ORIGINS = "https://YOUR-FRONTEND-TUNNEL"
-dotnet run --project backend/AiDj.Api.csproj --launch-profile https
+dotnet run --project backend/AiDj.Api.csproj --no-launch-profile
 ```
 
-Set the backend tunnel URL in `frontend/.env`, then start Vite so the tunnel can reach it:
+Start Vite and tunnel its HTTP port `5173`:
 
 ```powershell
-$env:VITE_API_URL = "https://YOUR-BACKEND-TUNNEL"
 npm run dev -- --host 0.0.0.0
 ```
 
-Open the frontend tunnel URL on the host laptop and use its QR invite. On the phone, allow camera and microphone access, then move or clap. The host output should update its energy, tempo, layers, and audio.
+```powershell
+ngrok http 5173
+```
+
+Open the generated frontend HTTPS URL on the host laptop and use its QR invite. On the phone, allow camera and microphone access, then move or clap. The host output should update its energy, tempo, layers, and audio.
 
 If the loop fails, check the participant status first, then `/health` on the backend tunnel, then browser microphone/camera permissions. Do not expose the frontend tunnel until `FRONTEND_ORIGINS` exactly matches its HTTPS origin.
 
