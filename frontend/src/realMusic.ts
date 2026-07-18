@@ -1,36 +1,54 @@
-import type { MusicParams } from "./protocol";
+import type { MusicParams, RoomState } from "./protocol";
 
-export type MusicStyle = "auto" | "melodic" | "electronic";
+export type MusicSelection = "auto" | "the-way-it-is" | "glitch-stairs" | "rhythm-factory";
 
-type TrackId = "the-way-it-is" | "glitch-stairs";
+type TrackId = Exclude<MusicSelection, "auto">;
 
 type TrackDefinition = {
   id: TrackId;
   title: string;
   url: string;
-  phraseSeconds: number;
 };
+
+type TrackProfile = {
+  bpm: number;
+  phraseSeconds: number;
+  loudness: number;
+  dynamics: number;
+  brightness: number;
+  intensity: number;
+};
+
+type Track = TrackDefinition & { profile?: TrackProfile };
 
 type Deck = {
   gain: GainNode;
   filter: BiquadFilterNode;
   source: AudioBufferSourceNode;
-  track: TrackDefinition;
+  track: Track;
   startedAt: number;
 };
 
-const tracks: Record<TrackId, TrackDefinition> = {
+type Decision = {
+  track: Track;
+  reason: string;
+};
+
+const tracks: Record<TrackId, Track> = {
   "the-way-it-is": {
     id: "the-way-it-is",
     title: "The Way It Is",
     url: "/stems/the_way_it_is.wav",
-    phraseSeconds: 19.2,
   },
   "glitch-stairs": {
     id: "glitch-stairs",
     title: "Glitch Stairs",
     url: "/stems/glitchstairs.wav",
-    phraseSeconds: 19.2,
+  },
+  "rhythm-factory": {
+    id: "rhythm-factory",
+    title: "Rhythm Factory",
+    url: "/stems/rhythm_factory.wav",
   },
 };
 
@@ -40,16 +58,22 @@ export class RealMusicDecks {
   private compressor!: DynamicsCompressorNode;
   private readonly buffers = new Map<TrackId, AudioBuffer>();
   private activeDeck: Deck | undefined;
+  private scheduledTrack: TrackId | undefined;
   private isInitialized = false;
   private isStarted = false;
-  private selectedStyle: MusicStyle = "auto";
+  private selectedTrack: MusicSelection = "auto";
   private parameters: MusicParams = { tempo: 92, filterCutoff: 0.18, noteDensity: 0.15, layerCount: 1 };
   private roomEnergy = 0;
+  private roomCoherence = 1;
+  private energyTrend = 0;
   private lastSwitchAt = 0;
+  private readonly playHistory: TrackId[] = [];
   private readonly onTrackChanged: (title: string) => void;
+  private readonly onDecision: (message: string) => void;
 
-  public constructor(onTrackChanged: (title: string) => void) {
+  public constructor(onTrackChanged: (title: string) => void, onDecision: (message: string) => void) {
     this.onTrackChanged = onTrackChanged;
+    this.onDecision = onDecision;
   }
 
   public async start(): Promise<void> {
@@ -65,7 +89,12 @@ export class RealMusicDecks {
 
     if (!this.isStarted) {
       this.isStarted = true;
-      this.startTrack(this.resolveTrack(), this.context.currentTime + 0.05, this.targetGain());
+      const decision = this.chooseTrack();
+      this.activeDeck = this.createDeck(decision.track, this.context.currentTime + 0.05, this.targetGain());
+      this.lastSwitchAt = this.activeDeck.startedAt;
+      this.remember(decision.track.id);
+      this.onTrackChanged(decision.track.title);
+      this.onDecision(decision.reason);
     }
   }
 
@@ -74,13 +103,17 @@ export class RealMusicDecks {
     this.applyMix();
   }
 
-  public setRoomEnergy(energy: number): void {
-    this.roomEnergy = Math.max(0, Math.min(1, energy));
+  public setRoomState(state: RoomState): void {
+    const nextEnergy = Math.max(0, Math.min(1, state.energy));
+    const delta = nextEnergy - this.roomEnergy;
+    this.energyTrend = this.energyTrend * 0.75 + delta * 0.25;
+    this.roomEnergy = nextEnergy;
+    this.roomCoherence = Math.max(0, Math.min(1, state.coherence));
     this.considerTrackChange();
   }
 
-  public setStyle(style: MusicStyle): void {
-    this.selectedStyle = style;
+  public setSelection(selection: MusicSelection): void {
+    this.selectedTrack = selection;
     this.considerTrackChange(true);
   }
 
@@ -103,23 +136,103 @@ export class RealMusicDecks {
   }
 
   private async loadTracks(): Promise<void> {
-    await Promise.all(Object.values(tracks).map(async track => {
+    for (const track of Object.values(tracks)) {
       const response = await fetch(track.url);
       if (!response.ok) {
         throw new Error(`Could not load ${track.title} (${response.status})`);
       }
       const data = await response.arrayBuffer();
-      this.buffers.set(track.id, await this.context.decodeAudioData(data));
-    }));
+      const buffer = await this.context.decodeAudioData(data);
+      this.buffers.set(track.id, buffer);
+      track.profile = this.analyze(buffer);
+    }
+    this.normalizeProfiles();
+  }
+
+  private analyze(buffer: AudioBuffer): TrackProfile {
+    const samples = buffer.getChannelData(0);
+    const frameSize = 1_024;
+    const frames = Math.floor(samples.length / frameSize);
+    const envelope = new Float32Array(frames);
+    let zeroCrossings = 0;
+
+    for (let frame = 0; frame < frames; frame += 1) {
+      const offset = frame * frameSize;
+      let sumSquares = 0;
+      for (let index = 0; index < frameSize; index += 1) {
+        const sample = samples[offset + index];
+        sumSquares += sample * sample;
+        if (index > 0 && (sample >= 0) !== (samples[offset + index - 1] >= 0)) {
+          zeroCrossings += 1;
+        }
+      }
+      envelope[frame] = Math.sqrt(sumSquares / frameSize);
+    }
+
+    const averageLoudness = envelope.reduce((sum, value) => sum + value, 0) / Math.max(frames, 1);
+    const sortedEnvelope = [...envelope].sort((left, right) => left - right);
+    const quiet = sortedEnvelope[Math.floor(sortedEnvelope.length * 0.1)] ?? 0;
+    const loud = sortedEnvelope[Math.floor(sortedEnvelope.length * 0.9)] ?? 0;
+    const onset = new Float32Array(frames);
+    for (let index = 1; index < frames; index += 1) {
+      onset[index] = Math.max(0, envelope[index] - envelope[index - 1]);
+    }
+
+    const bpm = this.estimateBpm(onset, buffer.sampleRate / frameSize);
+    return {
+      bpm,
+      phraseSeconds: Math.max(8, Math.min(32, 16 * 60 / bpm)),
+      loudness: averageLoudness,
+      dynamics: loud - quiet,
+      brightness: zeroCrossings / Math.max(samples.length, 1),
+      intensity: 0,
+    };
+  }
+
+  private estimateBpm(onset: Float32Array, framesPerSecond: number): number {
+    let bestBpm = 120;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (let bpm = 70; bpm <= 170; bpm += 1) {
+      const lag = Math.max(1, Math.round(framesPerSecond * 60 / bpm));
+      let score = 0;
+      for (let index = lag; index < onset.length; index += 1) {
+        score += onset[index] * onset[index - lag];
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestBpm = bpm;
+      }
+    }
+    return bestBpm;
+  }
+
+  private normalizeProfiles(): void {
+    const profiles = Object.values(tracks).map(track => track.profile!);
+    const normalize = (value: number, values: number[]): number => {
+      const lowest = Math.min(...values);
+      const highest = Math.max(...values);
+      return highest - lowest < 0.0001 ? 0.5 : (value - lowest) / (highest - lowest);
+    };
+    const loudnessValues = profiles.map(profile => profile.loudness);
+    const dynamicsValues = profiles.map(profile => profile.dynamics);
+    const brightnessValues = profiles.map(profile => profile.brightness);
+    profiles.forEach(profile => {
+      profile.intensity = (
+        normalize(profile.loudness, loudnessValues) * 0.45 +
+        normalize(profile.dynamics, dynamicsValues) * 0.35 +
+        normalize(profile.brightness, brightnessValues) * 0.2
+      );
+    });
   }
 
   private considerTrackChange(force = false): void {
-    if (!this.isStarted || this.activeDeck === undefined) {
+    if (!this.isStarted || this.activeDeck === undefined || this.scheduledTrack !== undefined) {
       return;
     }
 
-    const target = this.resolveTrack();
-    if (target.id === this.activeDeck.track.id) {
+    const decision = this.chooseTrack();
+    this.onDecision(decision.reason);
+    if (decision.track.id === this.activeDeck.track.id) {
       return;
     }
 
@@ -128,27 +241,46 @@ export class RealMusicDecks {
       return;
     }
 
+    const currentScore = this.score(this.activeDeck.track);
+    const targetScore = this.score(decision.track);
+    if (!force && targetScore - currentScore < 0.12) {
+      return;
+    }
+
     const elapsed = now - this.activeDeck.startedAt;
-    const phrasesElapsed = Math.ceil(elapsed / this.activeDeck.track.phraseSeconds);
-    const switchAt = this.activeDeck.startedAt + phrasesElapsed * this.activeDeck.track.phraseSeconds;
-    this.crossfadeTo(target, Math.max(switchAt, now + 0.1));
+    const phrasesElapsed = Math.ceil(elapsed / this.activeDeck.track.profile!.phraseSeconds);
+    const switchAt = this.activeDeck.startedAt + phrasesElapsed * this.activeDeck.track.profile!.phraseSeconds;
+    this.crossfadeTo(decision.track, Math.max(switchAt, now + 0.1));
   }
 
-  private resolveTrack(): TrackDefinition {
-    if (this.selectedStyle === "melodic") {
-      return tracks["the-way-it-is"];
-    }
-    if (this.selectedStyle === "electronic") {
-      return tracks["glitch-stairs"];
+  private chooseTrack(): Decision {
+    if (this.selectedTrack !== "auto") {
+      const track = tracks[this.selectedTrack];
+      return { track, reason: `Host selected ${track.title}.` };
     }
 
-    if (this.activeDeck?.track.id === "glitch-stairs" && this.roomEnergy > 0.35) {
-      return tracks["glitch-stairs"];
-    }
-    return this.roomEnergy >= 0.55 ? tracks["glitch-stairs"] : tracks["the-way-it-is"];
+    const ranked = Object.values(tracks)
+      .map(track => ({ track, score: this.score(track) }))
+      .sort((left, right) => right.score - left.score);
+    const winner = ranked[0].track;
+    const profile = winner.profile!;
+    const trend = this.energyTrend > 0.025 ? "rising" : this.energyTrend < -0.025 ? "falling" : "steady";
+    return {
+      track: winner,
+      reason: `AI selected ${winner.title}: ${trend} energy, ${Math.round(this.roomCoherence * 100)}% crowd coherence, ${Math.round(profile.bpm)} BPM analysis.`,
+    };
   }
 
-  private startTrack(track: TrackDefinition, startAt: number, initialGain: number): Deck {
+  private score(track: Track): number {
+    const profile = track.profile!;
+    const targetIntensity = Math.max(0, Math.min(1, this.roomEnergy * 0.7 + Math.max(this.energyTrend, 0) * 3 + this.roomCoherence * 0.1));
+    const energyFit = 1 - Math.abs(profile.intensity - targetIntensity);
+    const stabilityFit = this.roomCoherence < 0.45 ? 1 - profile.dynamics : profile.dynamics;
+    const novelty = this.playHistory.includes(track.id) ? 0 : 1;
+    return energyFit * 0.65 + stabilityFit * 0.2 + novelty * 0.15;
+  }
+
+  private createDeck(track: Track, startAt: number, initialGain: number): Deck {
     const source = this.context.createBufferSource();
     source.buffer = this.buffers.get(track.id)!;
     source.loop = true;
@@ -160,31 +292,36 @@ export class RealMusicDecks {
     source.connect(filter).connect(gain).connect(this.masterGain);
     source.start(startAt);
     const deck = { gain, filter, source, track, startedAt: startAt };
-    this.activeDeck = deck;
-    this.lastSwitchAt = startAt;
     this.applyFilter(deck);
-    if (initialGain > 0) {
-      this.applyMix();
-    }
-    this.onTrackChanged(track.title);
     return deck;
   }
 
-  private crossfadeTo(track: TrackDefinition, switchAt: number): void {
-    const outgoingDeck = this.activeDeck;
-    if (outgoingDeck === undefined) {
-      this.startTrack(track, switchAt, 0);
-      return;
-    }
-
-    const incomingDeck = this.startTrack(track, switchAt, 0);
+  private crossfadeTo(track: Track, switchAt: number): void {
+    const outgoingDeck = this.activeDeck!;
+    const incomingDeck = this.createDeck(track, switchAt, 0);
     const fadeEndsAt = switchAt + 3;
+    this.scheduledTrack = track.id;
     outgoingDeck.gain.gain.cancelScheduledValues(switchAt);
     outgoingDeck.gain.gain.setValueAtTime(outgoingDeck.gain.gain.value, switchAt);
     outgoingDeck.gain.gain.linearRampToValueAtTime(0.001, fadeEndsAt);
     incomingDeck.gain.gain.setValueAtTime(0.001, switchAt);
     incomingDeck.gain.gain.linearRampToValueAtTime(this.targetGain(), fadeEndsAt);
     outgoingDeck.source.stop(fadeEndsAt + 0.05);
+    window.setTimeout(() => {
+      this.activeDeck = incomingDeck;
+      this.scheduledTrack = undefined;
+      this.lastSwitchAt = switchAt;
+      this.remember(track.id);
+      this.onTrackChanged(track.title);
+      this.onDecision(`AI transitioned to ${track.title} after a ${Math.round(outgoingDeck.track.profile!.phraseSeconds)} second phrase.`);
+    }, Math.max(0, (switchAt - this.context.currentTime) * 1_000));
+  }
+
+  private remember(trackId: TrackId): void {
+    this.playHistory.push(trackId);
+    if (this.playHistory.length > 2) {
+      this.playHistory.shift();
+    }
   }
 
   private applyMix(): void {

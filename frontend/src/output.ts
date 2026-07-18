@@ -1,5 +1,5 @@
 import { createConnection } from "./connection";
-import { RealMusicDecks, type MusicStyle } from "./realMusic";
+import { RealMusicDecks, type MusicSelection } from "./realMusic";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
 import "./styles.css";
@@ -21,9 +21,11 @@ const inviteUrl = document.querySelector<HTMLElement>("#invite-url")!;
 const copyInvite = document.querySelector<HTMLButtonElement>("#copy-invite")!;
 const connection = createConnection();
 const nowPlaying = document.querySelector<HTMLElement>("#now-playing")!;
-const stemPack = new RealMusicDecks(title => {
-  nowPlaying.textContent = title;
-});
+const djDecision = document.querySelector<HTMLElement>("#dj-decision")!;
+const stemPack = new RealMusicDecks(
+  title => nowPlaying.textContent = title,
+  message => djDecision.textContent = message,
+);
 const participantUrl = new URL("/participant.html", window.location.origin).toString();
 let targetEnergy = 0;
 let displayedEnergy = 0;
@@ -38,11 +40,11 @@ connection.on("MusicParamsUpdated", (params: MusicParams) => {
 connection.on("RoomStateUpdated", (state: RoomState) => {
   participantCount.textContent = `${state.activeClients}`;
   targetEnergy = state.energy;
-  stemPack.setRoomEnergy(state.energy);
+  stemPack.setRoomState(state);
 });
 
 musicStyle.addEventListener("change", () => {
-  stemPack.setStyle(musicStyle.value as MusicStyle);
+  stemPack.setSelection(musicStyle.value as MusicSelection);
 });
 
 function animateSpeaker(): void {
