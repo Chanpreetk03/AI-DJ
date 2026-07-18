@@ -8,7 +8,7 @@ h1 { font-size: clamp(2.5rem, 10vw, 5rem); line-height: .95; margin: .2em 0 .3em
 .muted { color: #b7b0be; line-height: 1.55; max-width: 48ch; }
 .small { font-size: .8rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
-.button { display: inline-block; border: 0; border-radius: 999px; padding: .9rem 1.25rem; color: #151219; background: #f2a7d6; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+.button { position: relative; z-index: 1; display: inline-block; border: 0; border-radius: 999px; padding: .9rem 1.25rem; color: #151219; background: #f2a7d6; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; pointer-events: auto; touch-action: manipulation; user-select: none; }
 .start-audio-button { position: relative; z-index: 20; pointer-events: auto; touch-action: manipulation; user-select: none; }
 .button.secondary { color: #f7f3ee; background: #302937; }
 .button:disabled { opacity: .55; cursor: default; }
@@ -50,6 +50,7 @@ video { width: 100%; max-height: 18rem; margin-top: 2rem; border-radius: 1.25rem
 .booth-card .eyebrow { margin: 0 0 .3rem; color: #b8a7ff; }
 .booth-card h2 { margin: 0 0 1.25rem; font-size: 1.4rem; }
 .booth-state-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .6rem; }
+.booth-state, #booth-button, .booth-panel > .text-button { position: relative; z-index: 2; pointer-events: auto; touch-action: manipulation; }
 .booth-state { padding: .8rem .5rem; }
 .booth-slider { display: grid; gap: .6rem; margin-top: 1.5rem; color: #d5cfda; }
 .booth-slider span { display: flex; justify-content: space-between; }
