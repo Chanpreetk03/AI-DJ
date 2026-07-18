@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Join AI-DJ</title>
+  </head>
+  <body>
+    <main class="panel">
+      <p class="eyebrow">Audience phone mode</p>
+      <h1>Move with the music.</h1>
+      <p class="muted">Your phone sends lightweight vibe numbers. Camera frames and microphone audio stay on this device.</p>
+      <button id="join-button" class="button">Join the room</button>
+      <p id="status" class="status">Not connected</p>
+      <div class="meters">
+        <label>Motion <meter id="motion-meter" min="0" max="1" value="0"></meter></label>
+        <label>Sound <meter id="audio-meter" min="0" max="1" value="0"></meter></label>
+      </div>
+      <video id="camera" autoplay muted playsinline></video>
+    </main>
+    <script type="module" src="/src/participant.ts"></script>
+  </body>
+</html>

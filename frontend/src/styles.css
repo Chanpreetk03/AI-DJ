@@ -1,0 +1,26 @@
+:root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #f7f3ee; background: #101014; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(circle at 50% 0%, #31223d, #101014 55%); }
+.landing, .panel { width: min(92vw, 620px); margin: 0 auto; padding: 12vh 0 8vh; }
+.panel { min-height: 100vh; padding-top: 10vh; }
+h1 { font-size: clamp(2.5rem, 10vw, 5rem); line-height: .95; margin: .2em 0 .3em; letter-spacing: -.06em; }
+.eyebrow { color: #f2a7d6; text-transform: uppercase; letter-spacing: .16em; font-size: .76rem; font-weight: 700; }
+.muted { color: #b7b0be; line-height: 1.55; max-width: 48ch; }
+.small { font-size: .8rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+.button { display: inline-block; border: 0; border-radius: 999px; padding: .9rem 1.25rem; color: #151219; background: #f2a7d6; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+.button.secondary { color: #f7f3ee; background: #302937; }
+.button:disabled { opacity: .55; cursor: default; }
+.status { color: #9ff0c3; min-height: 1.5em; margin: 1.5rem 0; }
+.meters { display: grid; gap: .8rem; margin-top: 2rem; }
+label { display: grid; grid-template-columns: 7rem 1fr; gap: 1rem; align-items: center; color: #d5cfda; }
+meter { width: 100%; height: 1.2rem; accent-color: #f2a7d6; }
+video { width: 100%; max-height: 18rem; margin-top: 2rem; border-radius: 1.25rem; object-fit: cover; opacity: .7; }
+.output-panel { text-align: center; }
+.output-panel .muted { margin-left: auto; margin-right: auto; }
+.energy-ring { --energy: 0%; width: min(58vw, 260px); aspect-ratio: 1; display: grid; place-items: center; margin: 2rem auto; border-radius: 50%; background: radial-gradient(circle, #17141c 58%, transparent 59%), conic-gradient(#f2a7d6 var(--energy), #302937 0); box-shadow: 0 0 70px #f2a7d633; }
+.energy-ring span { font-size: 2.3rem; font-weight: 800; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin: 2rem 0; }
+.stats div { display: grid; gap: .4rem; padding: 1rem .5rem; border-radius: 1rem; background: #1b1821; }
+.stats span { color: #aaa1b1; font-size: .75rem; }
+.stats strong { font-size: 1.1rem; }
