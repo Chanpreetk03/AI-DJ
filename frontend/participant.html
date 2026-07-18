@@ -6,17 +6,26 @@
     <title>Join AI-DJ</title>
   </head>
   <body>
-    <main class="panel">
+    <main class="panel participant-panel">
       <p class="eyebrow">Audience phone mode</p>
       <h1>Move with the music.</h1>
-      <p class="muted">Your phone sends lightweight vibe numbers. Camera frames and microphone audio stay on this device.</p>
-      <button id="join-button" class="button">Join the room</button>
+      <p class="muted">Your camera and microphone stay on this phone. Only lightweight vibe numbers join the room.</p>
+      <label class="name-field" for="participant-name">
+        <span>Your name</span>
+        <input id="participant-name" type="text" autocomplete="name" maxlength="24" placeholder="e.g. Maya" />
+      </label>
+      <button id="join-button" class="button participant-join-button" type="button">Join the room</button>
       <p id="status" class="status">Not connected</p>
-      <div class="meters">
+      <section class="participant-camera-stage">
+        <div id="participant-energy" class="participant-energy-ring">
+          <video id="camera" autoplay muted playsinline></video>
+        </div>
+      </section>
+      <p id="contribution" class="contribution">Waiting for permission and connection</p>
+      <div class="meters participant-meters">
         <label>Motion <meter id="motion-meter" min="0" max="1" value="0"></meter></label>
         <label>Sound <meter id="audio-meter" min="0" max="1" value="0"></meter></label>
       </div>
-      <video id="camera" autoplay muted playsinline></video>
     </main>
     <script type="module" src="/src/participant.ts"></script>
   </body>
