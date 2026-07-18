@@ -1,8 +1,16 @@
 import type { MusicParams } from "./protocol";
 
-type AudioLayer = "percussion" | "bass" | "melody" | "atmosphere";
+type AudioLayer = "percussion" | "bass" | "atmosphere" | "melody";
 
-const layerOrder: AudioLayer[] = ["percussion", "bass", "melody", "atmosphere"];
+const layerOrder: AudioLayer[] = ["percussion", "bass", "atmosphere", "melody"];
+const chordProgression = [
+  [220, 261.63, 329.63],
+  [174.61, 220, 261.63],
+  [196, 246.94, 293.66],
+  [164.81, 196, 246.94],
+];
+const bassPattern = [110, 110, 130.81, 146.83, 98, 98, 130.81, 146.83];
+const leadPhrase = [329.63, 392, 440, 392, 493.88, 440, 392, 329.63, 293.66, 329.63, 392, 440, 392, 329.63, 293.66, 261.63];
 
 export class DefaultStemPack {
   private context!: AudioContext;
@@ -10,7 +18,7 @@ export class DefaultStemPack {
   private filter!: BiquadFilterNode;
   private readonly layerGains = new Map<AudioLayer, GainNode>();
   private noiseBuffer!: AudioBuffer;
-  private atmosphereOscillator: OscillatorNode | undefined;
+  private atmosphereOscillators: OscillatorNode[] = [];
   private isInitialized = false;
   private parameters: MusicParams = {
     tempo: 92,
@@ -37,13 +45,7 @@ export class DefaultStemPack {
     }
 
     this.playStartupTone();
-    if (this.atmosphereOscillator === undefined) {
-      this.atmosphereOscillator = this.context.createOscillator();
-      this.atmosphereOscillator.type = "sine";
-      this.atmosphereOscillator.frequency.value = 110;
-      this.atmosphereOscillator.connect(this.layerGains.get("atmosphere")!);
-      this.atmosphereOscillator.start();
-    }
+    this.startAtmosphere();
     this.applyParametersAt(this.context.currentTime);
     this.nextBeatAt = this.context.currentTime + 0.05;
     this.beatNumber = 0;
@@ -79,13 +81,13 @@ export class DefaultStemPack {
     this.filter.type = "lowpass";
     this.filter.Q.value = 0.7;
     this.filter.connect(this.masterGain);
-    this.masterGain.gain.value = 0.32;
+    this.masterGain.gain.value = 0.26;
     this.masterGain.connect(this.context.destination);
     this.noiseBuffer = this.createNoiseBuffer();
 
     layerOrder.forEach((layer, index) => {
       const gain = this.context.createGain();
-      gain.gain.value = index === 0 ? 0.8 : 0;
+      gain.gain.value = index === 0 ? 0.7 : 0;
       gain.connect(this.filter);
       this.layerGains.set(layer, gain);
     });
@@ -95,16 +97,17 @@ export class DefaultStemPack {
 
   private applyParametersAt(startTime: number): void {
     const now = Math.max(startTime, this.context.currentTime);
-    const cutoff = 450 + this.parameters.filterCutoff * 7_500;
+    const cutoff = 700 + this.parameters.filterCutoff * 8_500;
     this.filter.frequency.cancelScheduledValues(now);
-    this.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.25);
+    this.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.35);
     this.masterGain.gain.cancelScheduledValues(now);
-    this.masterGain.gain.linearRampToValueAtTime(0.22 + this.parameters.noteDensity * 0.3, now + 0.25);
+    this.masterGain.gain.linearRampToValueAtTime(0.2 + this.parameters.noteDensity * 0.22, now + 0.35);
 
-    if (this.atmosphereOscillator !== undefined) {
-      this.atmosphereOscillator.frequency.cancelScheduledValues(now);
-      this.atmosphereOscillator.frequency.linearRampToValueAtTime(70 + this.parameters.tempo * 0.65, now + 0.35);
-    }
+    this.atmosphereOscillators.forEach((oscillator, index) => {
+      const frequency = index === 0 ? 110 : 165;
+      oscillator.frequency.cancelScheduledValues(now);
+      oscillator.frequency.linearRampToValueAtTime(frequency + this.parameters.noteDensity * 8, now + 0.5);
+    });
 
     layerOrder.forEach((layer, index) => {
       const gain = this.layerGains.get(layer)!;
@@ -150,6 +153,21 @@ export class DefaultStemPack {
     oscillator.stop(now + 0.45);
   }
 
+  private startAtmosphere(): void {
+    if (this.atmosphereOscillators.length > 0) {
+      return;
+    }
+
+    [110, 165].forEach((frequency, index) => {
+      const oscillator = this.context.createOscillator();
+      oscillator.type = index === 0 ? "sine" : "triangle";
+      oscillator.frequency.value = frequency;
+      oscillator.connect(this.layerGains.get("atmosphere")!);
+      oscillator.start();
+      this.atmosphereOscillators.push(oscillator);
+    });
+  }
+
   private scheduleUpcomingBeat(): void {
     if (this.context.state !== "running") {
       return;
@@ -170,31 +188,35 @@ export class DefaultStemPack {
       this.applyParametersAt(time);
     }
 
-    if (beatNumber % 2 === 0) {
-      this.playPercussion(time, "kick");
-    } else {
-      this.playPercussion(time, "snare");
+    const secondsPerBeat = 60 / Math.max(this.parameters.tempo, 40);
+    const step = beatNumber % 16;
+
+    if (step % 4 === 0 || (this.parameters.layerCount >= 4 && step === 10)) {
+      this.playKick(time);
     }
 
-    if (this.parameters.layerCount >= 3 || this.parameters.noteDensity > 0.55) {
-      this.playHat(time + (60 / Math.max(this.parameters.tempo, 40)) / 2);
+    if (step === 4 || step === 12) {
+      this.playSnare(time);
+    }
+
+    if (this.parameters.layerCount >= 2 || this.parameters.noteDensity > 0.35) {
+      this.playHat(time + secondsPerBeat / 2);
     }
 
     if (this.parameters.layerCount >= 2) {
-      this.playBass(time, [98, 130.81, 146.83, 130.81][beatNumber % 4]);
+      this.playBass(time, bassPattern[step % bassPattern.length], step % 4 === 0 ? 0.38 : 0.22);
     }
 
-    if (this.parameters.layerCount >= 3 && beatNumber % 2 === 0) {
-      this.playMelody(time, [196, 220, 261.63, 293.66, 329.63, 293.66, 261.63, 220][beatNumber % 8]);
+    if (this.parameters.layerCount >= 3 && step % 4 === 0) {
+      this.playChord(time, chordProgression[Math.floor(step / 4) % chordProgression.length], secondsPerBeat * 3.4);
+    }
+
+    if (this.parameters.layerCount >= 4 && (step % 2 === 0 || this.parameters.noteDensity > 0.85)) {
+      this.playLead(time, leadPhrase[step % leadPhrase.length], secondsPerBeat * 0.72);
     }
   }
 
-  private playPercussion(time: number, kind: "kick" | "snare"): void {
-    if (kind === "kick") {
-      this.playKick(time);
-      return;
-    }
-
+  private playSnare(time: number): void {
     const source = this.context.createBufferSource();
     const gain = this.context.createGain();
     const filter = this.context.createBiquadFilter();
@@ -239,16 +261,18 @@ export class DefaultStemPack {
     source.stop(time + 0.07);
   }
 
-  private playBass(time: number, frequency: number): void {
-    this.playTone(time, frequency, 0.28, "bass", "sawtooth", 0.28);
+  private playBass(time: number, frequency: number, volume: number): void {
+    this.playTone(time, frequency, 0.34, "bass", "sawtooth", volume);
   }
 
-  private playMelody(time: number, frequency: number): void {
-    const density = this.parameters.noteDensity;
-    if (density < 0.35 && this.beatNumber % 4 !== 0) {
-      return;
-    }
-    this.playTone(time, frequency, 0.22, "melody", "triangle", 0.18);
+  private playChord(time: number, frequencies: number[], duration: number): void {
+    frequencies.forEach((frequency, index) => {
+      this.playTone(time + index * 0.018, frequency, duration, "atmosphere", "triangle", 0.07);
+    });
+  }
+
+  private playLead(time: number, frequency: number, duration: number): void {
+    this.playTone(time, frequency, duration, "melody", "square", 0.09 + this.parameters.noteDensity * 0.07);
   }
 
   private playTone(
@@ -263,7 +287,11 @@ export class DefaultStemPack {
     const gain = this.context.createGain();
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, time);
-    oscillator.connect(gain).connect(this.layerGains.get(layer)!);
+    const filter = this.context.createBiquadFilter();
+    filter.type = layer === "bass" ? "lowpass" : "bandpass";
+    filter.frequency.setValueAtTime(layer === "bass" ? 650 : 1_600 + this.parameters.filterCutoff * 2_400, time);
+    filter.Q.setValueAtTime(layer === "bass" ? 0.5 : 0.8, time);
+    oscillator.connect(filter).connect(gain).connect(this.layerGains.get(layer)!);
     gain.gain.setValueAtTime(0.001, time);
     gain.gain.exponentialRampToValueAtTime(volume, time + 0.015);
     gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
@@ -272,7 +300,7 @@ export class DefaultStemPack {
   }
 
   private layerVolume(index: number): number {
-    return [0.8, 0.42, 0.32, 0.16][index] * (0.7 + this.parameters.noteDensity * 0.3);
+    return [0.72, 0.38, 0.22, 0.28][index] * (0.78 + this.parameters.noteDensity * 0.22);
   }
 
   private createNoiseBuffer(): AudioBuffer {
