@@ -3,51 +3,51 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI-DJ Output</title>
+    <title>AI-DJ Host Console</title>
   </head>
   <body>
-    <main class="panel output-panel">
-      <p class="eyebrow">Output tab</p>
-      <h1>Room is listening.</h1>
-      <p id="status" class="status">Connecting…</p>
-      <div class="energy-ring" id="energy-ring"><span id="energy-value">0%</span></div>
+    <main class="panel output-panel host-room">
+      <header class="room-header">
+        <div>
+          <p class="eyebrow">AI-DJ / Host console</p>
+          <h1>Let’s make some noise.</h1>
+        </div>
+        <button id="invite-button" class="button secondary invite-button">Invite people <span aria-hidden="true">⌁</span></button>
+      </header>
+      <p id="status" class="status">Connectingâ€¦</p>
+      <section class="speaker-stage" aria-label="Room energy visualizer">
+        <div class="stage-grid" aria-hidden="true"></div>
+        <div class="orbit orbit-one" aria-hidden="true"></div>
+        <div class="orbit orbit-two" aria-hidden="true"></div>
+        <div class="equalizer" aria-hidden="true">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <div class="speaker-glow" aria-hidden="true"></div>
+        <div class="speaker" id="speaker" aria-hidden="true">
+          <div class="speaker-tweeter"></div>
+          <div class="speaker-cone speaker-cone-large"></div>
+          <div class="speaker-cone speaker-cone-small"></div>
+        </div>
+        <div class="speaker-energy"><span id="energy-value">0%</span><small>room energy</small></div>
+      </section>
       <div class="stats">
         <div><span>Tempo</span><strong id="tempo">92 BPM</strong></div>
         <div><span>Layers</span><strong id="layers">1 / 4</strong></div>
-        <div><span>Cutoff</span><strong id="cutoff">18%</strong></div>
+        <div><span>People in</span><strong id="participant-count">0</strong></div>
       </div>
-      <section class="operator-status" aria-labelledby="operator-status-title">
-        <div class="operator-status-heading">
-          <div>
-            <p class="eyebrow">Operator view</p>
-            <h2 id="operator-status-title">Room health</h2>
-          </div>
-          <span id="signal-health" class="health-badge is-idle">No signal</span>
-        </div>
-        <div class="operator-grid">
-          <div class="operator-metric"><span>Participants</span><strong id="active-clients">0</strong></div>
-          <div class="operator-metric"><span>Coherence</span><strong id="coherence">100%</strong></div>
-          <div class="operator-metric"><span>Motion</span><strong id="motion">—</strong></div>
-          <div class="operator-metric"><span>Mic energy</span><strong id="audio-rms">—</strong></div>
-          <div class="operator-metric"><span>Onsets / sec</span><strong id="onset-rate">—</strong></div>
-          <div class="operator-metric"><span>Last update</span><strong id="last-update">Waiting</strong></div>
-        </div>
-      </section>
-      <section class="rehearsal-panel" aria-labelledby="rehearsal-title">
-        <div>
-          <p class="eyebrow">Fallback mode</p>
-          <h2 id="rehearsal-title">Synthetic rehearsal</h2>
-          <p class="muted small">Drives the same Vibe Vector → Room State → Music Parameters path as a participant phone.</p>
-        </div>
-        <div class="rehearsal-actions">
-          <button id="start-rehearsal" class="button secondary" type="button">Run quiet → peak → cooldown</button>
-          <button id="stop-rehearsal" class="button text-button" type="button" disabled>Stop</button>
-        </div>
-        <p id="rehearsal-status" class="rehearsal-status">Audience Phone Mode active</p>
-      </section>
-      <button id="start-audio" class="button">Start audio output</button>
+      <button id="start-audio" class="button start-audio-button" type="button">Start audio output</button>
       <p class="muted small">The Default Stem Pack uses four smoothly mixed layers. Audio playback requires one click in this tab.</p>
     </main>
+    <div id="invite-modal" class="modal-backdrop" hidden>
+      <section class="invite-modal" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+        <button id="close-invite" class="modal-close" aria-label="Close invite">×</button>
+        <p class="eyebrow">Bring the room to life</p>
+        <h2 id="invite-title">Scan to join the party.</h2>
+        <canvas id="invite-qr" width="240" height="240"></canvas>
+        <p id="invite-url" class="invite-url"></p>
+        <button id="copy-invite" class="button secondary">Copy invite link</button>
+      </section>
+    </div>
     <script type="module" src="/src/output.ts"></script>
   </body>
 </html>

@@ -24,6 +24,8 @@ Open the Vite URL, then use one tab for `participant.html`, `output.html`, or `b
 
 The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
 
+For operator control, open `status.html` in a separate tab. It shows connected clients, the latest source/vibe, room energy, current Music Parameters, and output-tab health. If phone sensing is unavailable, use `fallback.html` for a rehearsed synthetic sequence or manual fallback control.
+
 Validate the server-owned room aggregation and music mapping logic:
 
 ```powershell
@@ -110,6 +112,14 @@ dotnet dev-certs https --trust
 ```
 
 For laptop-only checks, open the local Vite URL and use one tab for `output.html` and another for `participant.html`. A phone still requires the HTTPS tunnel or a correctly configured HTTPS Vite fallback.
+
+## VS Code
+
+Install frontend dependencies once with `npm install` from `frontend/`. The repository includes VS Code launch and task files for starting the full local stack. The backend status tests can be run with:
+
+```powershell
+dotnet test backend/tests/AiDj.Api.Tests/AiDj.Api.Tests.csproj
+```
 
 ## Structure
 

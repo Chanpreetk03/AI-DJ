@@ -117,6 +117,15 @@ video { width: 100%; max-height: 18rem; margin-top: 2rem; border-radius: 1.25rem
 .invite-modal canvas { display: block; width: 240px; max-width: 100%; height: auto; margin: 0 auto 1rem; border-radius: .65rem; }
 .modal-close { position: absolute; top: .6rem; right: .8rem; border: 0; background: transparent; color: #c8baca; font-size: 1.8rem; cursor: pointer; }
 .invite-url { overflow: hidden; margin: 0 auto 1rem; color: #b7a8bb; font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.dashboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .7rem; margin: 2rem 0 .7rem; }
+.status-card { display: grid; gap: .5rem; padding: 1rem; border-radius: 1rem; background: #1b1821; }
+.status-card.wide { margin-top: .7rem; }
+.status-card span { color: #aaa1b1; font-size: .75rem; }
+.status-card strong { font-size: 1.3rem; }
+.good { color: #9ff0c3; }
+.bad { color: #ff9eae; }
+.hidden { display: none; }
+.landing-secondary-actions { margin-top: 1rem; }
 
 @keyframes reveal-up { from { opacity: 0; transform: translateY(1.2rem); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }

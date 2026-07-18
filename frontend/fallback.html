@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-DJ Fallback</title>
+  </head>
+  <body>
+    <main class="panel">
+      <p class="eyebrow">Fallback and rehearsal mode</p>
+      <h1>Keep the room moving.</h1>
+      <p class="muted">Use Synthetic Mode to rehearse a full energy arc or Booth Device Mode if audience phones cannot join. These controls use the same server-owned path as Audience Phone Mode.</p>
+      <div class="actions">
+        <button id="sequence-button" class="button">Run quiet → peak → cool</button>
+        <button id="booth-button" class="button secondary">Start booth controls</button>
+      </div>
+      <p id="status" class="status">Not connected</p>
+      <section id="booth-controls" class="meters hidden">
+        <label>Booth motion <input id="booth-motion" type="range" min="0" max="1" step="0.01" value="0.2"></label>
+        <label>Booth sound <input id="booth-audio" type="range" min="0" max="1" step="0.01" value="0.2"></label>
+      </section>
+      <p id="source-label" class="muted small">Fallback controls are inactive.</p>
+    </main>
+    <script type="module" src="/src/fallback.ts"></script>
+  </body>
+</html>

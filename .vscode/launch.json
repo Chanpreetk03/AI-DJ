@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "AI-DJ: Backend",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "${workspaceFolder}/backend/bin/Debug/net9.0/AiDj.Api.dll",
+      "cwd": "${workspaceFolder}/backend",
+      "preLaunchTask": "backend: build",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://localhost:5000"
+      },
+      "stopAtEntry": false
+    },
+    {
+      "name": "AI-DJ: Frontend",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/frontend",
+      "preLaunchTask": "frontend: dev"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "AI-DJ: Full Stack",
+      "configurations": [
+        "AI-DJ: Backend",
+        "AI-DJ: Frontend"
+      ],
+      "stopAll": true
+    }
+  ]
+}
