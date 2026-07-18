@@ -1,6 +1,6 @@
 import { createConnection } from "./connection";
 import type { VibeVector } from "./protocol";
-import { FrameDifferenceSensor, MicrophoneFeatureSensor } from "./sensing";
+import { combineMotionSignals, FrameDifferenceSensor, MicrophoneFeatureSensor, PhoneMotionSensor } from "./sensing";
 import "./styles.css";
 
 const joinButton = document.querySelector<HTMLButtonElement>("#join-button")!;
@@ -29,6 +29,7 @@ let participantConnection: ParticipantConnection | undefined;
 let participantStream: MediaStream | undefined;
 let sensorTimer: number | undefined;
 let participantAudioContext: AudioContext | undefined;
+let phoneMotionSensor: PhoneMotionSensor | undefined;
 let wakeLock: WakeLockSentinelLike | undefined;
 let isPageVisible = document.visibilityState === "visible";
 
@@ -47,6 +48,8 @@ joinButton.addEventListener("click", async () => {
   status.textContent = "Requesting camera and microphone…";
 
   try {
+    phoneMotionSensor = new PhoneMotionSensor();
+    await phoneMotionSensor.start();
     const stream = await requestMediaStream();
     participantStream = stream;
     camera.srcObject = stream;
@@ -173,13 +176,15 @@ function startSensorLoop(connection: ParticipantConnection, stream: MediaStream)
       const cameraFeatures = cameraSensor.sample(camera, context, canvas.width, canvas.height);
       analyser.getByteTimeDomainData(audioData);
       const microphoneFeatures = microphoneSensor.sample(audioData, Date.now());
-      const energy = Math.min((cameraFeatures.motion + microphoneFeatures.audioRms) / 2, 1);
+      const motion = combineMotionSignals(cameraFeatures.motion, phoneMotionSensor?.sample() ?? 0);
+      const energy = Math.min((motion + microphoneFeatures.audioRms) / 2, 1);
       const vibe: VibeVector = {
         ...cameraFeatures,
         ...microphoneFeatures,
+        motion,
         timestamp: Date.now(),
       };
-      motionMeter.value = cameraFeatures.motion;
+      motionMeter.value = motion;
       audioMeter.value = microphoneFeatures.audioRms;
       energyRing.style.setProperty("--participant-energy", `${energy}`);
       await connection.invoke("SendVibe", vibe);
@@ -243,6 +248,8 @@ function cleanupSession(): void {
   }
   participantStream?.getTracks().forEach(track => track.stop());
   participantStream = undefined;
+  phoneMotionSensor?.stop();
+  phoneMotionSensor = undefined;
   camera.srcObject = null;
   if (participantAudioContext !== undefined) {
     void participantAudioContext.close().catch(() => undefined);

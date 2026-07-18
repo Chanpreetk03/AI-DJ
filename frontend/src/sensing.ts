@@ -8,6 +8,94 @@ export type MicrophoneFeatures = {
   onsetRate: number;
 };
 
+type MotionVector = { x: number; y: number; z: number };
+
+type DeviceMotionPermissionEvent = typeof DeviceMotionEvent & {
+  requestPermission?: () => Promise<"granted" | "denied">;
+};
+
+export class PhoneMotionSensor {
+  private motion = 0;
+  private previousGravity: MotionVector | undefined;
+  private listening = false;
+
+  public async start(): Promise<void> {
+    if (typeof window === "undefined" || typeof DeviceMotionEvent === "undefined") {
+      return;
+    }
+
+    const motionEvent = DeviceMotionEvent as DeviceMotionPermissionEvent;
+    if (motionEvent.requestPermission !== undefined) {
+      try {
+        if (await motionEvent.requestPermission() !== "granted") {
+          return;
+        }
+      } catch {
+        return;
+      }
+    }
+
+    window.addEventListener("devicemotion", this.handleMotion);
+    this.listening = true;
+  }
+
+  public sample(): number {
+    return this.motion;
+  }
+
+  public stop(): void {
+    if (this.listening) {
+      window.removeEventListener("devicemotion", this.handleMotion);
+    }
+    this.listening = false;
+    this.motion = 0;
+    this.previousGravity = undefined;
+  }
+
+  private readonly handleMotion = (event: DeviceMotionEvent): void => {
+    const acceleration = event.acceleration;
+    const gravity = event.accelerationIncludingGravity;
+    const linearAcceleration = acceleration !== null
+      ? this.magnitude(acceleration)
+      : this.gravityChange(gravity);
+    const rotation = event.rotationRate === null ? 0 : Math.sqrt(
+      (event.rotationRate.alpha ?? 0) ** 2 +
+      (event.rotationRate.beta ?? 0) ** 2 +
+      (event.rotationRate.gamma ?? 0) ** 2,
+    );
+    const rawMotion = Math.min(linearAcceleration / 4, 1) * 0.65 + Math.min(rotation / 180, 1) * 0.35;
+
+    this.motion = this.motion * 0.65 + Math.min(rawMotion, 1) * 0.35;
+  };
+
+  private gravityChange(gravity: DeviceMotionEvent["accelerationIncludingGravity"]): number {
+    if (gravity === null) {
+      return 0;
+    }
+
+    const current = { x: gravity.x ?? 0, y: gravity.y ?? 0, z: gravity.z ?? 0 };
+    const previous = this.previousGravity;
+    this.previousGravity = current;
+    if (previous === undefined) {
+      return 0;
+    }
+
+    return Math.sqrt(
+      (current.x - previous.x) ** 2 +
+      (current.y - previous.y) ** 2 +
+      (current.z - previous.z) ** 2,
+    );
+  }
+
+  private magnitude(value: { x: number | null; y: number | null; z: number | null }): number {
+    return Math.sqrt((value.x ?? 0) ** 2 + (value.y ?? 0) ** 2 + (value.z ?? 0) ** 2);
+  }
+}
+
+export function combineMotionSignals(cameraMotion: number, phoneMotion: number): number {
+  return Math.min(cameraMotion * 0.6 + phoneMotion * 0.4, 1);
+}
+
 export class FrameDifferenceSensor {
   private previousFrame: ImageData | undefined;
   private readonly motionSamples: number[] = [];
