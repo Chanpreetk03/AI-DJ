@@ -99,13 +99,13 @@ Implement the server-owned path from incoming Vibe Vectors to Room State and Mus
 
 ## Acceptance criteria
 
-- [ ] Server accepts Vibe Vectors from SignalR clients.
-- [ ] RoomAggregator computes server-owned Room State with `energy`, `coherence`, and `activeClients`.
-- [ ] Stale clients decay or stop contributing after the timeout window.
-- [ ] VibeToMusicMapper converts Room State into Music Parameters.
-- [ ] Music Parameters include at least `tempo`, `filterCutoff`, `noteDensity`, and `layerCount`.
-- [ ] Output clients receive Music Parameters from the server.
-- [ ] Aggregator and mapper logic have deterministic tests.
+- [x] Server accepts Vibe Vectors from SignalR clients.
+- [x] RoomAggregator computes server-owned Room State with `energy`, `coherence`, and `activeClients`.
+- [x] Stale clients decay or stop contributing after the timeout window.
+- [x] VibeToMusicMapper converts Room State into Music Parameters.
+- [x] Music Parameters include at least `tempo`, `filterCutoff`, `noteDensity`, and `layerCount`.
+- [x] Output clients receive Music Parameters from the server.
+- [x] Aggregator and mapper logic have deterministic tests.
 
 ## Blocked by
 
@@ -161,12 +161,12 @@ Add an operator-facing status view so the team can see whether the demo is healt
 
 ## Acceptance criteria
 
-- [ ] Status view shows active client count.
-- [ ] Status view shows latest Vibe Vector values or simple meters.
-- [ ] Status view shows current Room State.
-- [ ] Status view shows current Music Parameters.
-- [ ] Status view shows whether the output tab is connected.
-- [ ] Status view makes stale/no-signal states obvious.
+- [x] Status view shows active client count.
+- [x] Status view shows latest Vibe Vector values or simple meters.
+- [x] Status view shows current Room State.
+- [x] Status view shows current Music Parameters.
+- [x] Status view shows whether the output tab is connected.
+- [x] Status view makes stale/no-signal states obvious.
 
 ## Blocked by
 
@@ -190,11 +190,11 @@ Add synthetic and Booth Device paths that drive the same server-owned Room State
 
 ## Acceptance criteria
 
-- [ ] Synthetic input can drive a quiet-to-peak-to-cooldown sequence.
-- [ ] Synthetic input uses the same SignalR/server path as real clients where practical.
-- [ ] Booth Device Mode can contribute Vibe Vectors from a controlled device or local page.
-- [ ] Fallback modes are clearly labeled so they are not confused with Audience Phone Mode.
-- [ ] Output tab responds to fallback input through the same Music Parameters path.
+- [x] Synthetic input can drive a quiet-to-peak-to-cooldown sequence.
+- [x] Synthetic input uses the same SignalR/server path as real clients where practical.
+- [x] Booth Device Mode can contribute Vibe Vectors from a controlled device or local page.
+- [x] Fallback modes are clearly labeled so they are not confused with Audience Phone Mode.
+- [x] Output tab responds to fallback input through the same Music Parameters path.
 
 ## Blocked by
 

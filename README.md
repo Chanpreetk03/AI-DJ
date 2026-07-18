@@ -22,7 +22,19 @@ The frontend reads its backend URL from `frontend/.env`. Copy `frontend/.env.exa
 
 Open the Vite URL, then use one tab for `participant.html` and another for `output.html`.
 
+For operator control, open `status.html` in a separate tab. It shows connected clients, the latest source/vibe, room energy, current music parameters, and output-tab health. If phone sensing is unavailable, use `fallback.html` and choose either Synthetic Mode for a rehearsed energy arc or Booth Device Mode for manual sliders.
+
 The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
+
+## Start from VS Code
+
+Install frontend dependencies once with `npm install` from `frontend/`. Then open the Run and Debug panel and choose `AI-DJ: Full Stack`. This starts the backend on `http://localhost:5000` and Vite on `http://localhost:5173`.
+
+Backend tests run with:
+
+```powershell
+dotnet test backend/tests/AiDj.Api.Tests/AiDj.Api.Tests.csproj
+```
 
 ## Structure
 
