@@ -9,8 +9,16 @@ const chordProgression = [
   [130.81, 164.81, 196],
   [196, 246.94, 293.66],
 ];
+const alternateChordProgression = [
+  [196, 246.94, 293.66],
+  [220, 261.63, 329.63],
+  [174.61, 220, 261.63],
+  [196, 246.94, 293.66],
+];
 const bassPattern = [110, 110, 110, 130.81, 87.31, 87.31, 98, 130.81];
 const leadPhrase = [329.63, 392, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63, 392, 440, 493.88, 440, 392, 329.63, 293.66];
+const alternateBassPattern = [98, 98, 130.81, 146.83, 110, 110, 130.81, 146.83];
+const alternateLeadPhrase = [392, 440, 493.88, 440, 392, 329.63, 293.66, 329.63, 392, 440, 392, 329.63, 293.66, 261.63, 293.66, 329.63];
 
 export class DefaultStemPack {
   private context!: AudioContext;
@@ -21,7 +29,6 @@ export class DefaultStemPack {
   private delayGain!: GainNode;
   private readonly layerGains = new Map<AudioLayer, GainNode>();
   private noiseBuffer!: AudioBuffer;
-  private atmosphereOscillators: OscillatorNode[] = [];
   private isInitialized = false;
   private parameters: MusicParams = {
     tempo: 92,
@@ -47,7 +54,6 @@ export class DefaultStemPack {
       throw new Error(`Audio context did not start: ${this.context.state}`);
     }
 
-    this.startAtmosphere();
     this.applyParametersAt(this.context.currentTime);
     this.nextBeatAt = this.context.currentTime + 0.05;
     this.beatNumber = 0;
@@ -117,12 +123,6 @@ export class DefaultStemPack {
     this.masterGain.gain.cancelScheduledValues(now);
     this.masterGain.gain.linearRampToValueAtTime(0.2 + this.parameters.noteDensity * 0.22, now + 0.35);
 
-    this.atmosphereOscillators.forEach((oscillator, index) => {
-      const frequency = index === 0 ? 110 : 165;
-      oscillator.frequency.cancelScheduledValues(now);
-      oscillator.frequency.linearRampToValueAtTime(frequency + this.parameters.noteDensity * 8, now + 0.5);
-    });
-
     layerOrder.forEach((layer, index) => {
       const gain = this.layerGains.get(layer)!;
       const target = index < this.parameters.layerCount ? this.layerVolume(index) : 0;
@@ -167,21 +167,6 @@ export class DefaultStemPack {
     oscillator.stop(now + 0.45);
   }
 
-  private startAtmosphere(): void {
-    if (this.atmosphereOscillators.length > 0) {
-      return;
-    }
-
-    [110, 165].forEach((frequency, index) => {
-      const oscillator = this.context.createOscillator();
-      oscillator.type = index === 0 ? "sine" : "triangle";
-      oscillator.frequency.value = frequency;
-      oscillator.connect(this.layerGains.get("atmosphere")!);
-      oscillator.start();
-      this.atmosphereOscillators.push(oscillator);
-    });
-  }
-
   private scheduleUpcomingBeat(): void {
     if (this.context.state !== "running") {
       return;
@@ -204,6 +189,7 @@ export class DefaultStemPack {
 
     const secondsPerBeat = 60 / Math.max(this.parameters.tempo, 40);
     const step = beatNumber % 16;
+    const variant = Math.floor(beatNumber / 32) % 2;
 
     if (step % 4 === 0 || (this.parameters.layerCount >= 4 && step === 10)) {
       this.playKick(time);
@@ -218,15 +204,18 @@ export class DefaultStemPack {
     }
 
     if (this.parameters.layerCount >= 2) {
-      this.playBass(time, bassPattern[step % bassPattern.length], step % 4 === 0 ? 0.38 : 0.22);
+      const activeBassPattern = variant === 0 ? bassPattern : alternateBassPattern;
+      this.playBass(time, activeBassPattern[step % activeBassPattern.length], step % 4 === 0 ? 0.38 : 0.22);
     }
 
     if (this.parameters.layerCount >= 3 && step % 4 === 0) {
-      this.playChord(time, chordProgression[Math.floor(step / 4) % chordProgression.length], secondsPerBeat * 3.4);
+      const activeProgression = variant === 0 ? chordProgression : alternateChordProgression;
+      this.playChord(time, activeProgression[Math.floor(step / 4) % activeProgression.length], secondsPerBeat * 3.4);
     }
 
     if (this.parameters.layerCount >= 4 && (step % 2 === 0 || this.parameters.noteDensity > 0.85)) {
-      this.playLead(time, leadPhrase[step % leadPhrase.length], secondsPerBeat * 0.72);
+      const activeLeadPhrase = variant === 0 ? leadPhrase : alternateLeadPhrase;
+      this.playLead(time, activeLeadPhrase[step % activeLeadPhrase.length], secondsPerBeat * 0.72);
     }
   }
 
