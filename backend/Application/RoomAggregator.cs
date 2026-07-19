@@ -5,11 +5,21 @@ namespace AiDj.Api.Application;
 public sealed class RoomAggregator
 {
     private const long StaleAfterMilliseconds = 2_000;
+    private const double RiseTimeConstantMilliseconds = 600;
+    private const double FallTimeConstantMilliseconds = 1_400;
     private readonly Dictionary<string, ClientVibe> clients = new();
     private readonly object sync = new();
     private double previousEnergy;
     private double previousTrend;
     private long previousStateAt;
+    private bool hasSmoothedState;
+    private long previousSmoothingAt;
+    private double smoothedEnergy;
+    private double smoothedCoherence;
+    private double smoothedMotionEnergy;
+    private double smoothedAudioEnergy;
+    private double smoothedOnsetDensity;
+    private double smoothedVolatility;
 
     public void Ingest(string clientId, VibeVector vibe, long nowMilliseconds)
     {
@@ -50,6 +60,7 @@ public sealed class RoomAggregator
                 previousEnergy = 0;
                 previousTrend = 0;
                 previousStateAt = nowMilliseconds;
+                ResetSmoothing();
                 return emptyState;
             }
 
@@ -66,20 +77,72 @@ public sealed class RoomAggregator
             var variance = active.Average(vibe => Math.Pow(vibe.Motion - average, 2));
             var coherence = 1 - Math.Min(Math.Sqrt(variance) * 2, 1);
             var volatility = CalculateVolatility(energies);
-            var trend = CalculateTrend(averageEnergy, nowMilliseconds);
+            UpdateSmoothedState(averageEnergy, coherence, motionEnergy, audioEnergy, onsetDensity, volatility, nowMilliseconds);
+            var trend = CalculateTrend(smoothedEnergy, nowMilliseconds);
             var confidence = 0.55 + (0.45 * Math.Min(active.Length / 3d, 1));
 
             return CreateState(
-                averageEnergy,
-                coherence,
+                smoothedEnergy,
+                smoothedCoherence,
                 active.Length,
-                motionEnergy,
-                audioEnergy,
-                onsetDensity,
+                smoothedMotionEnergy,
+                smoothedAudioEnergy,
+                smoothedOnsetDensity,
                 trend,
-                volatility,
+                smoothedVolatility,
                 confidence);
         }
+    }
+
+    private void UpdateSmoothedState(
+        double energy,
+        double coherence,
+        double motionEnergy,
+        double audioEnergy,
+        double onsetDensity,
+        double volatility,
+        long nowMilliseconds)
+    {
+        if (!hasSmoothedState)
+        {
+            smoothedEnergy = energy;
+            smoothedCoherence = coherence;
+            smoothedMotionEnergy = motionEnergy;
+            smoothedAudioEnergy = audioEnergy;
+            smoothedOnsetDensity = onsetDensity;
+            smoothedVolatility = volatility;
+            previousSmoothingAt = nowMilliseconds;
+            hasSmoothedState = true;
+            return;
+        }
+
+        var elapsedMilliseconds = Math.Max(nowMilliseconds - previousSmoothingAt, 0);
+        smoothedEnergy = Smooth(smoothedEnergy, energy, elapsedMilliseconds);
+        smoothedCoherence = Smooth(smoothedCoherence, coherence, elapsedMilliseconds);
+        smoothedMotionEnergy = Smooth(smoothedMotionEnergy, motionEnergy, elapsedMilliseconds);
+        smoothedAudioEnergy = Smooth(smoothedAudioEnergy, audioEnergy, elapsedMilliseconds);
+        smoothedOnsetDensity = Smooth(smoothedOnsetDensity, onsetDensity, elapsedMilliseconds);
+        smoothedVolatility = Smooth(smoothedVolatility, volatility, elapsedMilliseconds);
+        previousSmoothingAt = nowMilliseconds;
+    }
+
+    private static double Smooth(double current, double target, long elapsedMilliseconds)
+    {
+        var timeConstant = target >= current ? RiseTimeConstantMilliseconds : FallTimeConstantMilliseconds;
+        var alpha = 1 - Math.Exp(-elapsedMilliseconds / timeConstant);
+        return current + ((target - current) * alpha);
+    }
+
+    private void ResetSmoothing()
+    {
+        hasSmoothedState = false;
+        previousSmoothingAt = 0;
+        smoothedEnergy = 0;
+        smoothedCoherence = 0;
+        smoothedMotionEnergy = 0;
+        smoothedAudioEnergy = 0;
+        smoothedOnsetDensity = 0;
+        smoothedVolatility = 0;
     }
 
     private RoomState CreateState(
