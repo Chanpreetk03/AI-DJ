@@ -3,7 +3,7 @@ using System.Text;
 
 namespace AiDj.Api.Application;
 
-public sealed class RoomAccessService(string signingSecret, bool allowUnauthenticatedDemoHost)
+public sealed class RoomAccessService(string signingSecret, bool allowUnauthenticatedHosts)
 {
     private readonly byte[] signingKey = Encoding.UTF8.GetBytes(signingSecret);
 
@@ -18,7 +18,7 @@ public sealed class RoomAccessService(string signingSecret, bool allowUnauthenti
 
     public bool CanControlRoom(string roomId, string? token)
     {
-        if (allowUnauthenticatedDemoHost && roomId == "demo")
+        if (allowUnauthenticatedHosts)
         {
             return true;
         }

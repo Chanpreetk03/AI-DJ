@@ -19,13 +19,14 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<VibeToMusicMapper>();
 builder.Services.AddSingleton<RoomRegistry>();
 var hostTokenSecret = builder.Configuration["ROOM_HOST_TOKEN_SECRET"];
-if (builder.Environment.IsProduction() && string.IsNullOrWhiteSpace(hostTokenSecret))
+var requireHostToken = builder.Configuration.GetValue<bool>("ROOM_REQUIRE_HOST_TOKEN");
+if (requireHostToken && string.IsNullOrWhiteSpace(hostTokenSecret))
 {
-    throw new InvalidOperationException("ROOM_HOST_TOKEN_SECRET is required in production.");
+    throw new InvalidOperationException("ROOM_HOST_TOKEN_SECRET is required when ROOM_REQUIRE_HOST_TOKEN is enabled.");
 }
 builder.Services.AddSingleton(new RoomAccessService(
     hostTokenSecret ?? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
-    builder.Environment.IsDevelopment()));
+    !requireHostToken));
 
 var app = builder.Build();
 

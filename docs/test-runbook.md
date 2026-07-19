@@ -64,6 +64,18 @@ All commands should complete successfully. The backend test suite should report 
 7. Refresh the output page and confirm audio requires a new user click.
 8. Deny camera and microphone separately, then retry. Confirm useful recovery messages appear.
 
+## 4a. Intelligent DJ acceptance
+
+1. Confirm the output console shows a changing DJ intent with intensity, energy direction, and confidence.
+2. Use Booth Device Mode to hold a steady low signal, then a sustained high signal. Confirm intent changes only after a short hold and that the arrangement becomes audibly denser.
+3. Send one short high-energy spike, then return to low energy. Confirm the intent does not immediately jump to Peak.
+4. Sustain a high-energy signal. Confirm a safe phrase-aligned section or track transition occurs rather than an abrupt mid-phrase replacement.
+5. Move from Peak to Active or Cooldown. Confirm drums, bass, melody, and filtering change audibly before another track is required.
+6. Confirm room-energy changes do not continuously speed up or slow down the playing track. Tempo changes are made only when a compatible selection is prepared.
+7. Toggle **Hold current direction**. Confirm arrangements continue to react while automatic section/track changes are paused; toggle again to resume AI selection.
+8. Confirm every candidate used during automatic playback is present in the music library and has a matching license record.
+9. Listen for clicks, obvious tempo distortion, clipping, and loudness jumps. Record the tested asset pair and result before adding it to a public demo set.
+
 ## 5. Issue 10: reconnect and screen lock
 
 1. Join from the phone and confirm the connected state.

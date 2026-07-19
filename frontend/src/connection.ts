@@ -51,6 +51,12 @@ function apiBaseUrl(): string {
 }
 
 function hostTokenForRoom(roomId: string): string | null {
+  const tokenFromFragment = new URLSearchParams(window.location.hash.slice(1)).get("host");
+  if (tokenFromFragment !== null) {
+    rememberHostToken(roomId, tokenFromFragment);
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    return tokenFromFragment;
+  }
   return window.localStorage.getItem(hostTokenKey(roomId));
 }
 
