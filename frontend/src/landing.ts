@@ -15,6 +15,7 @@ createRoomButton.addEventListener("click", async () => {
     rememberHostToken(room.roomId, room.hostToken);
     const outputUrl = new URL("/output.html", window.location.origin);
     outputUrl.searchParams.set("room", room.roomId);
+    outputUrl.hash = new URLSearchParams({ host: room.hostToken }).toString();
     window.location.assign(outputUrl);
   } catch (error) {
     console.error(error);

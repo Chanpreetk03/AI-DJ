@@ -8,9 +8,20 @@ export type MeasuredTrackProfile = {
   brightness: number;
   rhythmicity: number;
   intensity: number;
+  sections: MusicSection[];
 };
 
-type RawTrackProfile = Omit<MeasuredTrackProfile, "phraseSeconds" | "intensity">;
+export type MusicSection = {
+  id: string;
+  startSeconds: number;
+  endSeconds: number;
+  intensity: number;
+  loudness: number;
+  safeTransition: boolean;
+};
+
+type RawTrackProfile = Omit<MeasuredTrackProfile, "phraseSeconds" | "intensity" | "sections">;
+type RawAnalysis = { profile: RawTrackProfile; envelope: Float32Array; framesPerSecond: number };
 
 export async function analyzeTrack(
   context: BaseAudioContext,
@@ -50,7 +61,7 @@ export function normalizeProfiles(profiles: MeasuredTrackProfile[]): MeasuredTra
   }));
 }
 
-function analyzeBuffer(buffer: AudioBuffer): RawTrackProfile {
+function analyzeBuffer(buffer: AudioBuffer): RawAnalysis {
   const samples = buffer.getChannelData(0);
   const analysisSamples = samples.subarray(0, Math.min(samples.length, buffer.sampleRate * 90));
   const frameSize = 2_048;
@@ -84,22 +95,55 @@ function analyzeBuffer(buffer: AudioBuffer): RawTrackProfile {
 
   const tempo = estimateTempo(onset, buffer.sampleRate / frameSize);
   return {
-    bpm: tempo.bpm,
-    bpmConfidence: tempo.confidence,
-    durationSeconds: buffer.duration,
-    loudness,
-    dynamics,
-    brightness: zeroCrossings / Math.max(analysisSamples.length, 1),
-    rhythmicity: onsetTotal / Math.max(frameCount, 1),
+    profile: {
+      bpm: tempo.bpm,
+      bpmConfidence: tempo.confidence,
+      durationSeconds: buffer.duration,
+      loudness,
+      dynamics,
+      brightness: zeroCrossings / Math.max(analysisSamples.length, 1),
+      rhythmicity: onsetTotal / Math.max(frameCount, 1),
+    },
+    envelope,
+    framesPerSecond: buffer.sampleRate / frameSize,
   };
 }
 
-function toMeasuredProfile(raw: RawTrackProfile, phraseBars: number): MeasuredTrackProfile {
+function toMeasuredProfile(analysis: RawAnalysis, phraseBars: number): MeasuredTrackProfile {
+  const raw = analysis.profile;
+  const phraseSeconds = Math.max(8, Math.min(32, phraseBars * 4 * 60 / raw.bpm));
   return {
     ...raw,
-    phraseSeconds: Math.max(8, Math.min(32, phraseBars * 4 * 60 / raw.bpm)),
+    phraseSeconds,
     intensity: 0,
+    sections: measureSections(analysis.envelope, analysis.framesPerSecond, raw.durationSeconds, phraseSeconds),
   };
+}
+
+function measureSections(envelope: Float32Array, framesPerSecond: number, durationSeconds: number, phraseSeconds: number): MusicSection[] {
+  const sections: MusicSection[] = [];
+  const phraseCount = Math.max(1, Math.floor(durationSeconds / phraseSeconds));
+  const means: number[] = [];
+  for (let phrase = 0; phrase < phraseCount; phrase += 1) {
+    const startFrame = Math.floor(phrase * phraseSeconds * framesPerSecond);
+    const endFrame = Math.min(envelope.length, Math.floor((phrase + 1) * phraseSeconds * framesPerSecond));
+    let total = 0;
+    for (let frame = startFrame; frame < endFrame; frame += 1) total += envelope[frame] ?? 0;
+    means.push(total / Math.max(endFrame - startFrame, 1));
+  }
+  const lowest = Math.min(...means);
+  const highest = Math.max(...means);
+  for (const [index, loudness] of means.entries()) {
+    sections.push({
+      id: `phrase-${index + 1}`,
+      startSeconds: index * phraseSeconds,
+      endSeconds: Math.min(durationSeconds, (index + 1) * phraseSeconds),
+      loudness,
+      intensity: highest - lowest < 0.0001 ? 0.5 : (loudness - lowest) / (highest - lowest),
+      safeTransition: true,
+    });
+  }
+  return sections;
 }
 
 function estimateTempo(onset: Float32Array, framesPerSecond: number): { bpm: number; confidence: number } {

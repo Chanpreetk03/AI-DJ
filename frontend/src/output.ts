@@ -21,6 +21,9 @@ const inviteUrl = document.querySelector<HTMLElement>("#invite-url")!;
 const copyInvite = document.querySelector<HTMLButtonElement>("#copy-invite")!;
 const connection = createConnection();
 const djDecision = document.querySelector<HTMLElement>("#dj-decision")!;
+const djIntent = document.querySelector<HTMLElement>("#dj-intent")!;
+const holdDirection = document.querySelector<HTMLButtonElement>("#hold-direction")!;
+let directionHeld = false;
 const stemPack = new RealMusicDecks(
   () => undefined,
   message => djDecision.textContent = message,
@@ -28,6 +31,7 @@ const stemPack = new RealMusicDecks(
     djDecision.textContent = message;
     startAudio.textContent = "Analyzing music…";
   },
+  message => djIntent.textContent = message,
 );
 const participantUrl = roomUrl("/participant.html");
 let targetEnergy = 0;
@@ -129,6 +133,12 @@ async function startAudioOutput(): Promise<void> {
 
 startAudio.addEventListener("pointerup", () => void startAudioOutput());
 startAudio.addEventListener("click", () => void startAudioOutput());
+
+holdDirection.addEventListener("click", () => {
+  directionHeld = !directionHeld;
+  stemPack.setHoldSelection(directionHeld);
+  holdDirection.textContent = directionHeld ? "Resume AI direction" : "Hold current direction";
+});
 
 connect();
 

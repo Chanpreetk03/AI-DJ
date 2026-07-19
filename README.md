@@ -203,6 +203,8 @@ frontend/public/stems/music-library.json
 
 Each entry must provide a stable `id`, title, kind (`full` or `stem-pack`), phrase-bar count, license reference, and an audio URL or analysis URL. Stem packs group compatible files by musical role.
 
+Keep each asset's source and redistribution license recorded alongside the library. License status is documented separately from local automatic playback so the full bundled library remains available for rehearsal and demo tuning.
+
 To add a track:
 
 1. Place the licensed audio under `frontend/public/stems/`.
@@ -228,7 +230,7 @@ The roadmap includes recording anonymized decision outcomes and training a ranki
 - The host token is HMAC-signed, room-scoped, and expires after 12 hours.
 - The landing page stores the token in that browser's `localStorage`; it is supplied when joining privileged SignalR roles.
 - `output`, `booth`, `status`, and `synthetic` roles require a valid token. `participant` does not.
-- The `demo` room permits host access without a token only in the `Development` environment, for local convenience.
+- Host-token enforcement is optional. It is disabled by default for anonymous party rooms and can be enabled later with `ROOM_REQUIRE_HOST_TOKEN=true`.
 - Participants receive room IDs in URLs but never receive host tokens.
 
 The current room registry is in-memory. Restarting the API clears active rooms and host tokens issued with the development-generated secret. See the production roadmap for Redis-backed durability and full account authentication.
@@ -245,12 +247,14 @@ Copy-Item frontend/.env.example frontend/.env
 | --- | --- | --- |
 | `VITE_API_URL` | `frontend/.env` | API origin when the frontend cannot use Vite's local proxy. Leave unset for the default local proxy. |
 | `FRONTEND_ORIGINS` | Backend environment | Comma-separated browser origins allowed by CORS. Include the active HTTPS tunnel origin. |
-| `ROOM_HOST_TOKEN_SECRET` | Backend environment | Long random secret used to sign host tokens. Required in Production. |
+| `ROOM_HOST_TOKEN_SECRET` | Backend environment | Long random secret used to sign host tokens when host-token enforcement is enabled. |
+| `ROOM_REQUIRE_HOST_TOKEN` | Backend environment | Set to `true` only when host-token enforcement is required. It is `false` by default for anonymous rooms. |
 | `ASPNETCORE_ENVIRONMENT` | Backend environment | Set to `Development` locally; Production disables unauthenticated `demo` host access. |
 
 Example production secret setup:
 
 ```powershell
+$env:ROOM_REQUIRE_HOST_TOKEN = "true"
 $env:ROOM_HOST_TOKEN_SECRET = "replace-with-a-long-random-secret"
 ```
 
