@@ -149,6 +149,43 @@ npm run dev
 
 Open `http://localhost:5173`, select **Start a room**, and click **Start audio output** in the output console.
 
+
+### Optional Spotify host playback
+
+The local AI-DJ engine remains the default and is not replaced. The host output page can optionally connect to Spotify's official Web Playback SDK. To enable it, create a Spotify Developer app, add the exact HTTPS output URL (for example `https://your-ngrok-host.ngrok-free.dev/output.html`) as a Redirect URI, and set these values in `frontend/.env`:
+
+```text
+VITE_SPOTIFY_CLIENT_ID=your-spotify-client-id
+VITE_SPOTIFY_REDIRECT_URI=https://your-ngrok-host.ngrok-free.dev/output.html
+```
+
+The Spotify button is host-only and uses OAuth PKCE. It requires the app owner to have Spotify Premium and may require authorized users to be added to the Spotify app allowlist. Spotify playback stays in Spotify's official player; it is not downloaded, stem-split, remixed, or routed through the local AI-DJ audio engine. Keep local AI-DJ mode for reactive mixing and use Spotify only as an explicitly separate playback experiment. Review `docs/streaming-service-integration-research.md` before presenting this mode.
+
+To use automatic Spotify selection, open the `Automatic vibe DJ` section on the host output page, select a language and remix preference, then click `Start automatic vibe DJ`. AI-DJ searches Spotify for queries such as `calm English playlist`, `energetic dance Hindi playlist`, or `high energy remix Punjabi playlist`, loads playable tracks from the best matching results, and chooses from them according to Room State. A cooldown prevents rapid switching. Automatic mode uses Spotify's official player and leaves the local AI-DJ engine available as fallback.
+
+### Optional Apple Music host playback
+
+The host output page can also connect to Apple Music through the official MusicKit on the Web player. Create an Apple Music developer token, serve the app over HTTPS, and set these values in `frontend/.env`:
+
+```text
+VITE_APPLE_MUSIC_DEVELOPER_TOKEN=your-signed-apple-music-developer-token
+VITE_APPLE_MUSIC_STOREFRONT=us
+```
+
+Click `Connect Apple Music`, authorize the host's subscriber account, search the Apple Music catalog, and choose a song. Apple Music playback remains provider-controlled and separate from the local AI-DJ mixer.
+
+### Optional YouTube Music host playback
+
+The host output page can also search music videos through YouTube Data API v3 and play them in YouTube's official IFrame player. Enable the YouTube Data API, restrict a browser API key to the app origin, and set:
+
+```text
+VITE_YOUTUBE_API_KEY=your-youtube-data-api-key
+```
+
+Click `Connect YouTube Music`, search, and choose a result. YouTube playback remains embedded and provider-controlled; AI-DJ does not download or remix the audio.
+
+The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
+
 ### 3. Join as a participant
 
 From the output console, open the participant invitation/QR link. For laptop-only checks, open the link in another tab. For a real phone, follow the HTTPS tunnel setup below.

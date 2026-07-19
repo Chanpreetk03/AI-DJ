@@ -135,6 +135,12 @@ export class RealMusicDecks {
     }
   }
 
+  public async pause(): Promise<void> {
+    if (this.isInitialized && this.context.state === "running") {
+      await this.context.suspend();
+    }
+  }
+
   public setParameters(parameters: MusicParams): void {
     this.parameters = parameters;
     this.applyMix();
