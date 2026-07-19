@@ -23,6 +23,10 @@ const djDecision = document.querySelector<HTMLElement>("#dj-decision")!;
 const stemPack = new RealMusicDecks(
   () => undefined,
   message => djDecision.textContent = message,
+  message => {
+    djDecision.textContent = message;
+    startAudio.textContent = "Analyzing music…";
+  },
 );
 const participantUrl = new URL("/participant.html", window.location.origin).toString();
 let targetEnergy = 0;
@@ -104,7 +108,7 @@ async function startAudioOutput(): Promise<void> {
     await Promise.race([
       stemPack.start(),
       new Promise<never>((_, reject) => {
-        timeoutId = window.setTimeout(() => reject(new Error("Audio startup timed out. Check the browser output device.")), 30_000);
+        timeoutId = window.setTimeout(() => reject(new Error("Music analysis timed out. Refresh this tab and try again.")), 180_000);
       }),
     ]);
     startAudio.textContent = "Audio playing";

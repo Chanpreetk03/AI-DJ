@@ -62,7 +62,15 @@ async function toggleBooth(): Promise<void> {
 }
 
 async function sendVibe(source: string, motion: number, audioRms: number): Promise<void> {
-  const vibe: VibeVector = { motion, motionVariance: motion * 0.5, audioRms, onsetRate: audioRms * 4, timestamp: Date.now() };
+  const calibratedMotion = motion ** 2;
+  const calibratedAudio = audioRms ** 2;
+  const vibe: VibeVector = {
+    motion: calibratedMotion,
+    motionVariance: calibratedMotion,
+    audioRms: calibratedAudio,
+    onsetRate: audioRms * 4,
+    timestamp: Date.now(),
+  };
   await connection.invoke("SendVibe", vibe).catch(() => status.textContent = `${source} connection lost`);
 }
 

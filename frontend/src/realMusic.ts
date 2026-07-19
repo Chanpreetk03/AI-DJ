@@ -1,4 +1,6 @@
 import type { MusicParams, RoomState } from "./protocol";
+import { decideTrack } from "./djDecision";
+import { analyzeTrack, normalizeProfiles, type MeasuredTrackProfile } from "./musicAnalysis";
 
 export type MusicSelection = "auto" | string;
 
@@ -11,30 +13,21 @@ type TrackMetadata = {
   title: string;
   kind: TrackKind;
   url?: string;
-  bpm: number;
-  key: string;
+  analysisUrl?: string;
   phraseBars: number;
-  energy: number;
-  dynamics: number;
-  brightness: number;
   tags: string[];
   license: string;
   stems?: Record<StemId, string[]>;
 };
 
-type TrackProfile = {
-  bpm: number;
-  phraseSeconds: number;
-  dynamics: number;
-  intensity: number;
-};
-
-type Track = TrackMetadata & { profile?: TrackProfile };
+type Track = TrackMetadata & { profile?: MeasuredTrackProfile };
 
 type MusicLibrary = {
   version: number;
   tracks: TrackMetadata[];
 };
+
+const analysisCacheKey = "ai-dj-music-analysis-v2";
 
 type Deck = {
   gain: GainNode;
@@ -72,16 +65,33 @@ export class RealMusicDecks {
   private roomCoherence = 1;
   private roomVolatility = 0;
   private roomConfidence = 0;
+  private roomState: RoomState = {
+    energy: 0,
+    coherence: 1,
+    activeClients: 0,
+    motionEnergy: 0,
+    audioEnergy: 0,
+    onsetDensity: 0,
+    energyTrend: 0,
+    volatility: 0,
+    confidence: 0,
+  };
   private energyTrend = 0;
   private lastSwitchAt = 0;
   private pendingTrack: TrackId | undefined;
   private readonly playHistory: TrackId[] = [];
   private readonly onTrackChanged: (title: string) => void;
   private readonly onDecision: (message: string) => void;
+  private readonly onAnalysisProgress: (message: string) => void;
 
-  public constructor(onTrackChanged: (title: string) => void, onDecision: (message: string) => void) {
+  public constructor(
+    onTrackChanged: (title: string) => void,
+    onDecision: (message: string) => void,
+    onAnalysisProgress: (message: string) => void = () => undefined,
+  ) {
     this.onTrackChanged = onTrackChanged;
     this.onDecision = onDecision;
+    this.onAnalysisProgress = onAnalysisProgress;
   }
 
   public async start(): Promise<void> {
@@ -113,6 +123,7 @@ export class RealMusicDecks {
   }
 
   public setRoomState(state: RoomState): void {
+    this.roomState = state;
     const nextEnergy = Math.max(0, Math.min(1, state.energy));
     const delta = nextEnergy - this.roomEnergy;
     const reportedTrend = Math.max(-1, Math.min(1, state.energyTrend));
@@ -152,11 +163,40 @@ export class RealMusicDecks {
   private async loadTracks(): Promise<void> {
     const library = await this.loadLibrary();
     this.tracks = Object.fromEntries(library.tracks.map(track => [track.id, { ...track }])) as Record<TrackId, Track>;
-
-    for (const track of Object.values(this.tracks)) {
-      track.profile = this.profileFromMetadata(track);
+    const tracks = Object.values(this.tracks);
+    const profiles: MeasuredTrackProfile[] = [];
+    const cachedProfiles = this.readCachedProfiles();
+    for (const [index, track] of tracks.entries()) {
+      const analysisUrl = track.analysisUrl ?? track.url;
+      if (analysisUrl === undefined) {
+        throw new Error(`${track.title} needs an analysisUrl or full-track URL`);
+      }
+      this.onAnalysisProgress(`Analyzing ${track.title} (${index + 1}/${tracks.length})…`);
+      const profile = cachedProfiles[analysisUrl] ?? await analyzeTrack(this.context, analysisUrl, track.phraseBars);
+      track.profile = profile;
+      profiles.push(profile);
+      cachedProfiles[analysisUrl] = profile;
     }
-    this.normalizeProfiles();
+    const normalizedProfiles = normalizeProfiles(profiles);
+    tracks.forEach((track, index) => track.profile = normalizedProfiles[index]);
+    this.writeCachedProfiles(cachedProfiles);
+    this.onAnalysisProgress("Music analysis complete — selecting the best fit.");
+  }
+
+  private readCachedProfiles(): Record<string, MeasuredTrackProfile> {
+    try {
+      return JSON.parse(window.localStorage.getItem(analysisCacheKey) ?? "{}") as Record<string, MeasuredTrackProfile>;
+    } catch {
+      return {};
+    }
+  }
+
+  private writeCachedProfiles(profiles: Record<string, MeasuredTrackProfile>): void {
+    try {
+      window.localStorage.setItem(analysisCacheKey, JSON.stringify(profiles));
+    } catch {
+      // Analysis caching is optional; playback continues without it.
+    }
   }
 
   private async loadLibrary(): Promise<MusicLibrary> {
@@ -165,26 +205,6 @@ export class RealMusicDecks {
       throw new Error(`Could not load music library (${response.status})`);
     }
     return await response.json() as MusicLibrary;
-  }
-
-  private profileFromMetadata(metadata: TrackMetadata): TrackProfile {
-    return {
-      bpm: metadata.bpm,
-      phraseSeconds: Math.max(8, Math.min(32, metadata.phraseBars * 4 * 60 / metadata.bpm)),
-      dynamics: metadata.dynamics,
-      intensity: metadata.energy,
-    };
-  }
-
-  private normalizeProfiles(): void {
-    const profiles = Object.values(this.tracks).map(track => track.profile!);
-    const normalize = (value: number, values: number[]): number => {
-      const lowest = Math.min(...values);
-      const highest = Math.max(...values);
-      return highest - lowest < 0.0001 ? 0.5 : (value - lowest) / (highest - lowest);
-    };
-    const energyValues = profiles.map(profile => profile.intensity);
-    profiles.forEach(profile => profile.intensity = normalize(profile.intensity, energyValues));
   }
 
   private async ensureTrackLoaded(track: Track): Promise<void> {
@@ -235,12 +255,6 @@ export class RealMusicDecks {
       return;
     }
 
-    const currentScore = this.score(this.activeDeck.track);
-    const targetScore = this.score(decision.track);
-    if (!force && targetScore - currentScore < 0.12) {
-      return;
-    }
-
     this.pendingTrack = decision.track.id;
     try {
       await this.ensureTrackLoaded(decision.track);
@@ -269,37 +283,19 @@ export class RealMusicDecks {
       return { track, reason: `Host selected ${track.title}.` };
     }
 
-    const ranked = Object.values(this.tracks)
-      .map(track => ({ track, score: this.score(track) }))
-      .sort((left, right) => right.score - left.score);
-    const winner = ranked[0].track;
-    const profile = winner.profile!;
-    const trend = this.energyTrend > 0.025 ? "rising" : this.energyTrend < -0.025 ? "falling" : "steady";
-    const rhythm = this.roomOnsetDensity > 0.65 ? "rhythm-forward" : this.roomAudioEnergy > 0.55 ? "melodic" : "open-space";
+    const decision = decideTrack(
+      this.roomState,
+      Object.values(this.tracks).map(track => ({ id: track.id, title: track.title, profile: track.profile! })),
+      this.playHistory,
+    );
+    const winner = this.tracks[decision.trackId];
     return {
       track: winner,
-      reason: `AI selected ${winner.title}: ${trend} ${rhythm} room, ${Math.round(this.roomCoherence * 100)}% coherence, ${Math.round(this.roomConfidence * 100)}% sensing confidence.`,
+      reason: decision.reason,
     };
   }
 
-  private score(track: Track): number {
-    const profile = track.profile!;
-    const targetIntensity = Math.max(0, Math.min(1,
-      this.roomEnergy * 0.48 +
-      this.roomAudioEnergy * 0.18 +
-      this.roomOnsetDensity * 0.16 +
-      Math.max(this.energyTrend, 0) * 0.12 +
-      this.roomCoherence * 0.06));
-    const energyFit = 1 - Math.abs(profile.intensity - targetIntensity);
-    const stabilityFit = this.roomCoherence < 0.45 || this.roomVolatility > 0.55 ? 1 - profile.dynamics : profile.dynamics;
-    const rhythmFit = this.roomOnsetDensity > 0.6 && track.tags.includes("rhythmic") ? 1 :
-      this.roomAudioEnergy > 0.55 && track.tags.includes("melodic") ? 1 : 0.5;
-    const novelty = this.playHistory.includes(track.id) ? 0 : 1;
-    const confidenceFit = this.roomConfidence * 0.05;
-    return energyFit * 0.52 + stabilityFit * 0.18 + rhythmFit * 0.15 + novelty * 0.1 + confidenceFit;
-  }
-
-  private createDeck(track: Track, startAt: number, initialGain: number): Deck {
+  private createDeck(track: Track, startAt: number, initialGain: number, targetBpm = this.parameters.tempo): Deck {
     const gain = this.context.createGain();
     gain.gain.setValueAtTime(initialGain, startAt);
     const filter = this.context.createBiquadFilter();
@@ -307,23 +303,24 @@ export class RealMusicDecks {
     filter.Q.value = 0.5;
     gain.connect(this.masterGain);
     const deck = track.kind === "stem-pack"
-      ? this.createStemDeck(track, startAt, gain, filter)
-      : this.createFullTrackDeck(track, startAt, gain, filter);
+      ? this.createStemDeck(track, startAt, gain, filter, targetBpm)
+      : this.createFullTrackDeck(track, startAt, gain, filter, targetBpm);
     this.applyFilter(deck);
     this.applyStemMix(deck);
     return deck;
   }
 
-  private createFullTrackDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode): Deck {
+  private createFullTrackDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode, targetBpm: number): Deck {
     const source = this.context.createBufferSource();
     source.buffer = this.buffers.get(track.id)!;
     source.loop = true;
+    source.playbackRate.value = this.tempoRatio(track, targetBpm);
     source.connect(filter).connect(gain);
     source.start(startAt);
     return { gain, filter, sources: [source], track, startedAt: startAt };
   }
 
-  private createStemDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode): Deck {
+  private createStemDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode, targetBpm: number): Deck {
     const stemGains = new Map<StemId, GainNode>();
     const stemDefinitions = Object.entries(track.stems ?? {}) as [StemId, string[]][];
     const sources = stemDefinitions.map(([stemId, urls]) => {
@@ -332,6 +329,7 @@ export class RealMusicDecks {
       const url = this.chooseStemVariant(stemId, urls);
       source.buffer = this.stemBuffers.get(this.stemKey(track.id, stemId, url))!;
       source.loop = true;
+      source.playbackRate.value = this.tempoRatio(track, targetBpm);
       stemGain.connect(filter);
       source.connect(stemGain);
       source.start(startAt);
@@ -354,9 +352,13 @@ export class RealMusicDecks {
     return `${trackId}:${stemId}:${url}`;
   }
 
+  private tempoRatio(track: Track, targetBpm: number): number {
+    return Math.max(0.84, Math.min(1.16, targetBpm / Math.max(track.profile?.bpm ?? targetBpm, 1)));
+  }
+
   private crossfadeTo(track: Track, switchAt: number): void {
     const outgoingDeck = this.activeDeck!;
-    const incomingDeck = this.createDeck(track, switchAt, 0);
+    const incomingDeck = this.createDeck(track, switchAt, 0, outgoingDeck.track.profile?.bpm ?? this.parameters.tempo);
     const fadeEndsAt = switchAt + 3;
     this.scheduledTrack = track.id;
     outgoingDeck.gain.gain.cancelScheduledValues(switchAt);
@@ -391,6 +393,7 @@ export class RealMusicDecks {
     const now = this.context.currentTime;
     this.applyFilter(this.activeDeck);
     this.applyStemMix(this.activeDeck);
+    this.applyPlaybackRate(this.activeDeck);
     this.activeDeck.gain.gain.cancelScheduledValues(now);
     this.activeDeck.gain.gain.linearRampToValueAtTime(this.targetGain(), now + 0.4);
   }
@@ -400,6 +403,15 @@ export class RealMusicDecks {
     const cutoff = 900 + this.parameters.filterCutoff * 10_000;
     deck.filter.frequency.cancelScheduledValues(now);
     deck.filter.frequency.linearRampToValueAtTime(cutoff, now + 0.4);
+  }
+
+  private applyPlaybackRate(deck: Deck): void {
+    const now = this.context.currentTime;
+    const rate = this.tempoRatio(deck.track, this.parameters.tempo);
+    for (const source of deck.sources) {
+      source.playbackRate.cancelScheduledValues(now);
+      source.playbackRate.linearRampToValueAtTime(rate, now + 0.4);
+    }
   }
 
   private applyStemMix(deck: Deck): void {

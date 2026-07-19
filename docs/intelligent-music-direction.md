@@ -39,6 +39,8 @@ Use only assets with licenses that allow bundling and redistribution in this rep
 
 ## Current library implementation
 
-The browser now loads `frontend/public/stems/music-library.json` as the source of truth for track metadata, stem roles, phrase length, musical key, tags, and licensing references. Stem packs can expose multiple phrase variants per role; the output-side DJ chooses a compatible variant from room energy, rhythm density, melodic activity, and recent play history before starting the next phrase.
+The browser now loads `frontend/public/stems/music-library.json` as the source of truth for asset locations, stem roles, phrase-bar configuration, and licensing references. On its first run, it decodes each analysis asset and measures BPM, beat confidence, duration, loudness, dynamic range, transient density, and brightness. The result is cached locally for later starts.
 
-Adding a pack should therefore require a manifest entry and licensed assets, not edits to the audio decision code.
+The DJ decision module scores these measured profiles against Room State. At high room energy it prefers faster, more intense, more rhythmic material; at lower energy it favors calmer, less dense tracks. Stem packs can still expose multiple phrase variants per role, but the pack itself is selected from analysis rather than hand-entered energy labels.
+
+Adding a pack therefore requires a manifest entry, an analysis asset (the full mix for a stem pack), and licensed assets—not edits to the audio decision code or guessed BPM/energy values.

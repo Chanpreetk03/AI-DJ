@@ -17,3 +17,12 @@
 - **Publishing blocked:** the original source URL and redistribution license have not been recorded yet.
 - Do not publish or distribute this asset until provenance is added here.
 - File: `rhythm_factory.wav`
+
+## Added local tracks
+
+The following files were added locally but do not yet have verified source URLs and redistribution terms. They remain usable for local rehearsal only and must be documented before public distribution:
+
+- `in_the_lobby.wav`
+- `lofihiphop.ogg`
+- `Loop_The_Old_Tower_Inn.wav`
+- `Chill Beats/*`

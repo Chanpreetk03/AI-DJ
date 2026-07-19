@@ -8,6 +8,9 @@ h1 { font-size: clamp(2.5rem, 10vw, 5rem); line-height: .95; margin: .2em 0 .3em
 .muted { color: #b7b0be; line-height: 1.55; max-width: 48ch; }
 .small { font-size: .8rem; }
 .actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+.app-nav { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; width: min(92vw, 620px); margin: 1rem auto 0; padding: .45rem; border: 1px solid #ffffff12; border-radius: 999px; background: #17141ccc; }
+.app-nav a { padding: .45rem .7rem; border-radius: 999px; color: #cfc6d3; font-size: .76rem; text-decoration: none; }
+.app-nav a:hover, .app-nav a[aria-current="page"] { color: #17141c; background: #f2a7d6; }
 .button { position: relative; z-index: 1; display: inline-block; border: 0; border-radius: 999px; padding: .9rem 1.25rem; color: #151219; background: #f2a7d6; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; pointer-events: auto; touch-action: manipulation; user-select: none; }
 .start-audio-button { position: relative; z-index: 20; pointer-events: auto; touch-action: manipulation; user-select: none; }
 .button.secondary { color: #f7f3ee; background: #302937; }

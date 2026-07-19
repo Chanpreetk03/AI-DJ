@@ -7,6 +7,7 @@ public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapp
     private readonly object sync = new();
     private readonly Dictionary<string, string> connectionRoles = new();
     private VibeVector? latestVibe;
+    private string? latestClientId;
     private string? latestSource;
     private long latestVibeAt;
 
@@ -26,6 +27,34 @@ public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapp
         }
 
         aggregator.Remove(connectionId);
+
+        lock (sync)
+        {
+            if (latestClientId == connectionId)
+            {
+                latestVibe = null;
+                latestClientId = null;
+                latestSource = null;
+                latestVibeAt = 0;
+            }
+        }
+    }
+
+    public string? GetConnectionRole(string connectionId)
+    {
+        lock (sync)
+        {
+            return connectionRoles.GetValueOrDefault(connectionId);
+        }
+    }
+
+    public bool CanSendVibe(string connectionId)
+    {
+        lock (sync)
+        {
+            return connectionRoles.TryGetValue(connectionId, out var role) &&
+                role is "participant" or "booth" or "synthetic";
+        }
     }
 
     public (VibeVector Vibe, RoomState State, MusicParams Parameters) AcceptVibe(string clientId, VibeVector vibe)
@@ -36,6 +65,7 @@ public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapp
         lock (sync)
         {
             latestVibe = vibe;
+            latestClientId = clientId;
             latestSource = connectionRoles.GetValueOrDefault(clientId, "unknown");
             latestVibeAt = now;
         }

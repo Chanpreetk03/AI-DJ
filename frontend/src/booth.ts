@@ -6,6 +6,7 @@ const mode = document.querySelector<HTMLElement>("#booth-mode")!;
 const energyInput = document.querySelector<HTMLInputElement>("#booth-energy")!;
 const energyValue = document.querySelector<HTMLElement>("#booth-energy-value")!;
 const stateButtons = document.querySelectorAll<HTMLButtonElement>(".booth-state");
+const leaveButton = document.querySelector<HTMLButtonElement>("#booth-leave")!;
 const connection = createConnection();
 let energy = Number(energyInput.value);
 let sendTimer: number | undefined;
@@ -14,6 +15,7 @@ energyInput.addEventListener("input", () => {
   energy = Number(energyInput.value);
   updateEnergyLabel();
   mode.textContent = "Booth Device Mode · manual energy";
+  sendVibe();
 });
 
 stateButtons.forEach(button => {
@@ -22,6 +24,7 @@ stateButtons.forEach(button => {
     energyInput.value = `${energy}`;
     updateEnergyLabel();
     mode.textContent = `Booth Device Mode · ${button.textContent}`;
+    sendVibe();
   });
 });
 
@@ -42,6 +45,7 @@ connection.onreconnected(async () => {
 });
 
 connection.onclose(() => {
+  stopSending();
   status.textContent = "Disconnected — restart Booth Device Mode to retry.";
   mode.textContent = "Contribution paused";
 });
@@ -54,7 +58,7 @@ async function connect(): Promise<void> {
     await connection.invoke("Join", "booth");
     status.textContent = "Connected as Booth Device";
     mode.textContent = "Booth Device Mode · ready";
-    sendTimer = window.setInterval(sendVibe, 200);
+    startSending();
     sendVibe();
   } catch (error) {
     console.error(error);
@@ -63,15 +67,37 @@ async function connect(): Promise<void> {
   }
 }
 
+function startSending(): void {
+  if (sendTimer === undefined) {
+    sendTimer = window.setInterval(sendVibe, 200);
+  }
+}
+
+function stopSending(): void {
+  if (sendTimer !== undefined) {
+    window.clearInterval(sendTimer);
+    sendTimer = undefined;
+  }
+}
+
+leaveButton.addEventListener("click", async () => {
+  stopSending();
+  if (connection.state === "Connected") {
+    await connection.invoke("Leave").catch(error => console.error(error));
+  }
+  status.textContent = "Booth has left the room";
+  mode.textContent = "Contribution paused";
+});
+
 function sendVibe(): void {
   if (connection.state !== "Connected") {
     return;
   }
 
   void connection.invoke("SendVibe", {
-    motion: energy,
-    motionVariance: Math.min(energy * 0.8, 1),
-    audioRms: Math.min(energy * 0.9, 1),
+    motion: energy ** 2,
+    motionVariance: energy ** 2,
+    audioRms: energy ** 2,
     onsetRate: energy * 4,
     timestamp: Date.now(),
   }).catch(error => console.error(error));
@@ -82,8 +108,6 @@ function updateEnergyLabel(): void {
 }
 
 window.addEventListener("pagehide", () => {
-  if (sendTimer !== undefined) {
-    window.clearInterval(sendTimer);
-  }
+  stopSending();
   void connection.stop();
 });
