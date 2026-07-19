@@ -1,5 +1,6 @@
-import { createConnection } from "./connection";
+import { createConnection, joinRoom } from "./connection";
 import type { VibeVector } from "./protocol";
+import "./navigation";
 import "./styles.css";
 
 const sequenceButton = document.querySelector<HTMLButtonElement>("#sequence-button")!;
@@ -19,7 +20,7 @@ boothButton.addEventListener("click", () => void toggleBooth());
 async function connect(): Promise<void> {
   try {
     await connection.start();
-    await connection.invoke("Join", "synthetic");
+    await joinRoom(connection, "synthetic");
     status.textContent = "Connected — fallback controls ready";
   } catch (error) {
     console.error(error);
@@ -47,14 +48,14 @@ async function toggleBooth(): Promise<void> {
   if (boothTimer !== undefined) {
     window.clearInterval(boothTimer);
     boothTimer = undefined;
-    await connection.invoke("Join", "synthetic");
+    await joinRoom(connection, "synthetic");
     boothControls.classList.add("hidden");
     boothButton.textContent = "Start booth controls";
     sourceLabel.textContent = "Booth Device Mode stopped.";
     return;
   }
 
-  await connection.invoke("Join", "booth");
+  await joinRoom(connection, "booth");
   boothControls.classList.remove("hidden");
   boothButton.textContent = "Stop booth controls";
   sourceLabel.textContent = "Booth Device Mode active — use the sliders to rescue the demo.";

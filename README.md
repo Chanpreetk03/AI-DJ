@@ -20,7 +20,15 @@ npm run dev
 
 The frontend reads its backend URL from `frontend/.env`. Copy `frontend/.env.example` when setting up a new machine. For a phone demo, set `VITE_API_URL` to the HTTPS tunnel URL before starting Vite.
 
-Open the Vite URL, then use one tab for `participant.html`, `output.html`, or `booth.html`.
+Open the Vite URL and select `Start a room`. This creates a room-specific host token in that browser, then opens its output page. Share the generated participant invite with the crowd; it carries the room ID but never host control access.
+
+In production, set a stable signing secret before starting the backend:
+
+```powershell
+$env:ROOM_HOST_TOKEN_SECRET = "replace-with-a-long-random-secret"
+```
+
+The server creates a random development-only secret when this variable is absent. A stable production secret is required so issued host tokens remain valid across restarts and instances.
 
 The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
 

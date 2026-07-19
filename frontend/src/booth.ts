@@ -1,4 +1,5 @@
-import { createConnection } from "./connection";
+import { createConnection, joinRoom } from "./connection";
+import "./navigation";
 import "./styles.css";
 
 const status = document.querySelector<HTMLElement>("#booth-status")!;
@@ -35,7 +36,7 @@ connection.onreconnecting(() => {
 
 connection.onreconnected(async () => {
   try {
-    await connection.invoke("Join", "booth");
+    await joinRoom(connection, "booth");
     status.textContent = "Connected as Booth Device";
     mode.textContent = "Booth Device Mode · ready";
   } catch (error) {
@@ -55,7 +56,7 @@ void connect();
 async function connect(): Promise<void> {
   try {
     await connection.start();
-    await connection.invoke("Join", "booth");
+    await joinRoom(connection, "booth");
     status.textContent = "Connected as Booth Device";
     mode.textContent = "Booth Device Mode · ready";
     startSending();

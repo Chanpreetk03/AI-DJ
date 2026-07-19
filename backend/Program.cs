@@ -16,15 +16,39 @@ builder.Services.AddCors(options =>
         .AllowAnyMethod()
         .AllowCredentials());
 });
-builder.Services.AddSingleton<RoomAggregator>();
 builder.Services.AddSingleton<VibeToMusicMapper>();
-builder.Services.AddSingleton<RoomEngine>();
+builder.Services.AddSingleton<RoomRegistry>();
+var hostTokenSecret = builder.Configuration["ROOM_HOST_TOKEN_SECRET"];
+if (builder.Environment.IsProduction() && string.IsNullOrWhiteSpace(hostTokenSecret))
+{
+    throw new InvalidOperationException("ROOM_HOST_TOKEN_SECRET is required in production.");
+}
+builder.Services.AddSingleton(new RoomAccessService(
+    hostTokenSecret ?? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)),
+    builder.Environment.IsDevelopment()));
 
 var app = builder.Build();
 
+app.Services.GetRequiredService<RoomRegistry>().TryCreateRoom("demo");
+
 app.UseCors("Frontend");
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "ai-dj-api" }));
-app.MapGet("/api/status", (RoomEngine roomEngine) => Results.Ok(roomEngine.GetStatus()));
+app.MapGet("/api/status", (string? room, RoomRegistry rooms) =>
+    rooms.TryGetStatus(room ?? "demo", out var status) ? Results.Ok(status) : Results.NotFound());
+app.MapPost("/api/rooms", (CreateRoomRequest request, RoomRegistry rooms, RoomAccessService access) =>
+{
+    var roomId = string.IsNullOrWhiteSpace(request.RoomId)
+        ? Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(6)).ToLowerInvariant()
+        : RoomRegistry.NormalizeRoomId(request.RoomId);
+    if (!rooms.TryCreateRoom(roomId))
+    {
+        return Results.Conflict(new { message = "That room ID is already in use." });
+    }
+
+    return Results.Created($"/api/rooms/{roomId}", new { roomId, hostToken = access.CreateHostToken(roomId) });
+});
 app.MapHub<DjHub>("/hubs/dj");
 
 app.Run();
+
+public sealed record CreateRoomRequest(string? RoomId);

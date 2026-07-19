@@ -1,6 +1,7 @@
-import { createConnection } from "./connection";
+import { createConnection, joinRoom } from "./connection";
 import type { VibeVector } from "./protocol";
 import { combineMotionSignals, FrameDifferenceSensor, MicrophoneFeatureSensor, PhoneMotionSensor } from "./sensing";
+import "./navigation";
 import "./styles.css";
 
 const joinButton = document.querySelector<HTMLButtonElement>("#join-button")!;
@@ -63,7 +64,7 @@ joinButton.addEventListener("click", async () => {
     });
     connection.onreconnected(async () => {
       try {
-        await connection.invoke("Join", "participant");
+        await joinRoom(connection, "participant");
         status.textContent = `Connected as ${participantName}`;
         contribution.textContent = "Contributing local motion and sound features";
         void requestWakeLock();
@@ -80,7 +81,7 @@ joinButton.addEventListener("click", async () => {
     });
 
     await connection.start();
-    await connection.invoke("Join", "participant");
+    await joinRoom(connection, "participant");
     status.textContent = `Connected as ${participantName}`;
     contribution.textContent = "Contributing local motion and sound features";
     await requestWakeLock();
