@@ -32,4 +32,17 @@ public sealed class RoomRegistryTests
     {
         Assert.Equal(expected, RoomRegistry.NormalizeRoomId(input));
     }
+
+    [Fact]
+    public void Ending_a_room_removes_memberships_and_future_access()
+    {
+        var registry = new RoomRegistry(new VibeToMusicMapper());
+        registry.TryCreateRoom("college-night");
+        registry.Join("phone-1", "college-night", "participant");
+
+        Assert.True(registry.TryEndRoom("college-night"));
+        Assert.False(registry.Exists("college-night"));
+        Assert.False(registry.TryGetMembership("phone-1", out _));
+        Assert.False(registry.TryEndRoom("college-night"));
+    }
 }

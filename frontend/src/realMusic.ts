@@ -169,6 +169,21 @@ export class RealMusicDecks {
     if (!hold) void this.considerTrackChange(true);
   }
 
+  public stop(): void {
+    if (!this.isInitialized) {
+      return;
+    }
+
+    const now = this.context.currentTime;
+    this.activeDeck?.gain.gain.cancelScheduledValues(now);
+    this.activeDeck?.gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
+    this.activeDeck?.sources.forEach(source => source.stop(now + 0.25));
+    this.activeDeck = undefined;
+    this.scheduledTrack = undefined;
+    this.pendingTrack = undefined;
+    this.isStarted = false;
+  }
+
   private initializeAudioGraph(): void {
     const AudioContextConstructor = window.AudioContext ??
       (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;

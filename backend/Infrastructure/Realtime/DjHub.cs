@@ -20,7 +20,15 @@ public sealed class DjHub(RoomRegistry rooms, RoomAccessService access) : Hub
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, RoleGroup(previousMembership.RoomId, previousMembership.Role));
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, RoomGroup(previousMembership.RoomId));
         }
-        var membership = rooms.Join(Context.ConnectionId, normalizedRoomId, normalizedRole);
+        RoomMembership membership;
+        try
+        {
+            membership = rooms.Join(Context.ConnectionId, normalizedRoomId, normalizedRole);
+        }
+        catch (KeyNotFoundException)
+        {
+            throw new HubException("This room has ended or no longer exists. Ask the host for a new invite.");
+        }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, RoomGroup(membership.RoomId));
         await Groups.AddToGroupAsync(Context.ConnectionId, RoleGroup(membership.RoomId, normalizedRole));
@@ -60,6 +68,21 @@ public sealed class DjHub(RoomRegistry rooms, RoomAccessService access) : Hub
             await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("RoomStateUpdated", membership.Room.GetSnapshot().State);
             await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("StatusUpdated", membership.Room.GetStatus());
         }
+    }
+
+    public async Task EndRoom()
+    {
+        if (!rooms.TryGetMembership(Context.ConnectionId, out var membership) || membership.Role != "output")
+        {
+            throw new HubException("Only the active output console can end this room.");
+        }
+
+        if (!rooms.TryEndRoom(membership.RoomId))
+        {
+            return;
+        }
+
+        await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("RoomClosed", new { roomId = membership.RoomId });
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)

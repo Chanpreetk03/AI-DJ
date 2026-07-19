@@ -56,6 +56,22 @@ public sealed class RoomRegistry(VibeToMusicMapper mapper)
 
     public bool Exists(string roomId) => rooms.ContainsKey(NormalizeRoomId(roomId));
 
+    public bool TryEndRoom(string roomId)
+    {
+        var normalizedRoomId = NormalizeRoomId(roomId);
+        if (!rooms.TryRemove(normalizedRoomId, out _))
+        {
+            return false;
+        }
+
+        foreach (var membership in memberships.Where(entry => entry.Value.RoomId == normalizedRoomId).ToArray())
+        {
+            Leave(membership.Key);
+        }
+
+        return true;
+    }
+
     public static string NormalizeRoomId(string? roomId)
     {
         var normalized = string.IsNullOrWhiteSpace(roomId) ? "demo" : roomId.Trim().ToLowerInvariant();
