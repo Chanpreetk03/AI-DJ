@@ -7,7 +7,10 @@ var tests = new (string Name, Action Run)[]
     ("Aggregator excludes stale clients", AggregatorExcludesStaleClients),
     ("Aggregator reports matching participant coherence", AggregatorReportsMatchingParticipantCoherence),
     ("Mapper maps quiet and peak parameters", MapperMapsQuietAndPeakParameters),
-    ("Mapper selects layer thresholds", MapperSelectsLayerThresholds)
+    ("Mapper selects layer thresholds", MapperSelectsLayerThresholds),
+    ("Room host token is scoped to one room", RoomHostTokenIsScopedToOneRoom),
+    ("Room host token rejects invalid values", RoomHostTokenRejectsInvalidValues),
+    ("Room registry requires explicit room creation", RoomRegistryRequiresExplicitRoomCreation)
 };
 
 var failures = new List<string>();
@@ -82,6 +85,32 @@ static void MapperSelectsLayerThresholds()
         var parameters = mapper.Map(new RoomState(threshold.Energy, 1, 1));
         AssertEqual(threshold.Layers, parameters.LayerCount);
     }
+}
+
+static void RoomHostTokenIsScopedToOneRoom()
+{
+    var access = new RoomAccessService("test-signing-secret", false);
+    var token = access.CreateHostToken("college-night");
+
+    AssertEqual(true, access.CanControlRoom("college-night", token));
+    AssertEqual(false, access.CanControlRoom("another-room", token));
+}
+
+static void RoomHostTokenRejectsInvalidValues()
+{
+    var access = new RoomAccessService("test-signing-secret", false);
+
+    AssertEqual(false, access.CanControlRoom("college-night", null));
+    AssertEqual(false, access.CanControlRoom("college-night", "not-a-token"));
+}
+
+static void RoomRegistryRequiresExplicitRoomCreation()
+{
+    var registry = new RoomRegistry(new VibeToMusicMapper());
+    AssertEqual(false, registry.Exists("college-night"));
+    AssertEqual(true, registry.TryCreateRoom("college-night"));
+    AssertEqual(false, registry.TryCreateRoom("college-night"));
+    AssertEqual(true, registry.Exists("college-night"));
 }
 
 static void AssertEqual<T>(T expected, T actual)

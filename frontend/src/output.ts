@@ -1,7 +1,8 @@
-import { createConnection } from "./connection";
+import { createConnection, joinRoom, roomUrl } from "./connection";
 import { RealMusicDecks } from "./realMusic";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
+import "./navigation";
 import "./styles.css";
 
 const status = document.querySelector<HTMLElement>("#status")!;
@@ -28,7 +29,7 @@ const stemPack = new RealMusicDecks(
     startAudio.textContent = "Analyzing music…";
   },
 );
-const participantUrl = new URL("/participant.html", window.location.origin).toString();
+const participantUrl = roomUrl("/participant.html");
 let targetEnergy = 0;
 let displayedEnergy = 0;
 let isStartingAudio = false;
@@ -134,7 +135,7 @@ connect();
 async function connect(): Promise<void> {
   try {
     await connection.start();
-    await connection.invoke("Join", "output");
+    await joinRoom(connection, "output");
     status.textContent = "Connected - waiting for the room";
   } catch (error) {
     console.error(error);
