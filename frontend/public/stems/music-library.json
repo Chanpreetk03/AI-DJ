@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tracks": [
     {
       "id": "the-way-it-is",
@@ -19,6 +19,7 @@
       "id": "glitch-stairs",
       "title": "Glitch Stairs",
       "kind": "stem-pack",
+      "analysisUrl": "/stems/glitchstairs.wav",
       "bpm": 120,
       "key": "D minor",
       "phraseBars": 8,
@@ -59,6 +60,62 @@
       "dynamics": 0.78,
       "brightness": 0.69,
       "tags": ["rhythmic", "high-energy", "electronic"],
+      "license": "UNVERIFIED — see LICENSE.md before publishing"
+    },
+    {
+      "id": "city-in-the-rearview",
+      "title": "City in the Rearview",
+      "kind": "full",
+      "url": "/stems/Chill%20Beats/01%20HoliznaCC0%20-%20City%20In%20The%20Rearview.ogg",
+      "bpm": 96,
+      "key": "C major",
+      "phraseBars": 8,
+      "energy": 0.24,
+      "dynamics": 0.34,
+      "brightness": 0.35,
+      "tags": ["chill", "melodic", "warm"],
+      "license": "UNVERIFIED — see LICENSE.md before publishing"
+    },
+    {
+      "id": "dream-pop",
+      "title": "Dream Pop",
+      "kind": "full",
+      "url": "/stems/Chill%20Beats/08%20HoliznaCC0%20-%20Dream%20Pop.ogg",
+      "bpm": 108,
+      "key": "A minor",
+      "phraseBars": 8,
+      "energy": 0.5,
+      "dynamics": 0.48,
+      "brightness": 0.56,
+      "tags": ["chill", "melodic", "dreamy"],
+      "license": "UNVERIFIED — see LICENSE.md before publishing"
+    },
+    {
+      "id": "in-the-lobby",
+      "title": "In the Lobby",
+      "kind": "full",
+      "url": "/stems/in_the_lobby.wav",
+      "bpm": 112,
+      "key": "D minor",
+      "phraseBars": 8,
+      "energy": 0.62,
+      "dynamics": 0.6,
+      "brightness": 0.58,
+      "tags": ["groove", "rhythmic", "melodic"],
+      "license": "UNVERIFIED — see LICENSE.md before publishing"
+    },
+    {
+      "id": "lofi-hiphop",
+      "title": "Lo-fi Hip Hop",
+      "kind": "full",
+      "url": "/stems/lofihiphop.ogg",
+      "bpm": 84,
+      "key": "F minor",
+      "phraseBars": 8,
+      "energy": 0.18,
+      "dynamics": 0.28,
+      "brightness": 0.24,
+      "tags": ["chill", "groove", "open-space"],
       "license": "UNVERIFIED — see LICENSE.md before publishing"
     }
   ]

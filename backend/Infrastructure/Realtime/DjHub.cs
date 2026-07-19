@@ -22,6 +22,11 @@ public sealed class DjHub(RoomEngine roomEngine) : Hub
 
     public async Task SendVibe(VibeVector vibe)
     {
+        if (!roomEngine.CanSendVibe(Context.ConnectionId))
+        {
+            throw new HubException("Join as a participant, booth, or synthetic source before sending vibes.");
+        }
+
         var snapshot = roomEngine.AcceptVibe(Context.ConnectionId, vibe);
         await Clients.Group("output").SendAsync("MusicParamsUpdated", snapshot.Parameters);
         await Clients.Group("output").SendAsync("VibeVectorUpdated", snapshot.Vibe);
@@ -31,8 +36,12 @@ public sealed class DjHub(RoomEngine roomEngine) : Hub
 
     public async Task Leave()
     {
+        var role = roomEngine.GetConnectionRole(Context.ConnectionId);
         roomEngine.RemoveConnection(Context.ConnectionId);
-        await Groups.RemoveFromGroupAsync(Context.ConnectionId, "participant");
+        if (role is not null)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, role);
+        }
         await Clients.Caller.SendAsync("Left", new { connectionId = Context.ConnectionId });
         await Clients.All.SendAsync("RoomStateUpdated", roomEngine.GetSnapshot().State);
         await Clients.All.SendAsync("StatusUpdated", roomEngine.GetStatus());

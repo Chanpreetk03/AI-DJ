@@ -6,6 +6,9 @@
     <title>AI-DJ Booth Device</title>
   </head>
   <body>
+    <nav class="app-nav" aria-label="AI-DJ navigation">
+      <a href="/">Home</a><a href="/output.html">Output</a><a href="/participant.html">Join room</a><a href="/booth.html" aria-current="page">Booth</a><a href="/status.html">Status</a>
+    </nav>
     <main class="panel booth-panel">
       <p class="eyebrow">Fallback controller</p>
       <h1>Booth Device Mode</h1>
@@ -27,6 +30,9 @@
         </label>
         <p id="booth-mode" class="rehearsal-status">Waiting for connection</p>
       </section>
+      <div class="actions">
+        <button id="booth-leave" class="button secondary" type="button">Leave room</button>
+      </div>
       <a class="button text-button" href="/output.html">Back to output monitor</a>
     </main>
     <script type="module" src="/src/booth.ts"></script>
