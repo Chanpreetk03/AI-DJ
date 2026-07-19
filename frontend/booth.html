@@ -1,40 +1,5 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI-DJ Booth Device</title>
-  </head>
-  <body>
-    <nav class="app-nav" aria-label="AI-DJ navigation">
-      <a href="/">Home</a><a href="/output.html">Output</a><a href="/participant.html">Join room</a><a href="/booth.html" aria-current="page">Booth</a><a href="/status.html">Status</a>
-    </nav>
-    <main class="panel booth-panel">
-      <p class="eyebrow">Fallback controller</p>
-      <h1>Booth Device Mode</h1>
-      <p class="muted">Use this laptop controller when Audience Phone Mode is unavailable. It sends Vibe Vectors through the same server path.</p>
-      <p id="booth-status" class="status">Connecting…</p>
-      <section class="booth-card" aria-labelledby="booth-state-title">
-        <p class="eyebrow">Rehearsal state</p>
-        <h2 id="booth-state-title">Choose an energy level</h2>
-        <div class="booth-state-grid">
-          <button class="button secondary booth-state" data-energy="0.08" type="button">Quiet</button>
-          <button class="button secondary booth-state" data-energy="0.35" type="button">Warming</button>
-          <button class="button secondary booth-state" data-energy="0.68" type="button">Active</button>
-          <button class="button secondary booth-state" data-energy="1" type="button">Peak</button>
-          <button class="button secondary booth-state" data-energy="0.16" type="button">Cooldown</button>
-        </div>
-        <label class="booth-slider" for="booth-energy">
-          <span>Manual energy <strong id="booth-energy-value">8%</strong></span>
-          <input id="booth-energy" type="range" min="0" max="1" step="0.01" value="0.08" />
-        </label>
-        <p id="booth-mode" class="rehearsal-status">Waiting for connection</p>
-      </section>
-      <div class="actions">
-        <button id="booth-leave" class="button secondary" type="button">Leave room</button>
-      </div>
-      <a class="button text-button" href="/output.html">Back to output monitor</a>
-    </main>
-    <script type="module" src="/src/booth.ts"></script>
-  </body>
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>AI-DJ Booth Device</title></head>
+  <body><div id="root"></div><script type="module" src="/src/react/main.tsx"></script></body>
 </html>

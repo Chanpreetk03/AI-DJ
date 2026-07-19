@@ -1,38 +1,5 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI-DJ Status</title>
-  </head>
-  <body>
-    <nav class="app-nav" aria-label="AI-DJ navigation">
-      <a href="/">Home</a><a href="/output.html">Output</a><a href="/participant.html">Join room</a><a href="/booth.html">Booth</a><a href="/status.html" aria-current="page">Status</a>
-    </nav>
-    <main class="panel">
-      <p class="eyebrow">Operator status</p>
-      <h1>Demo control room.</h1>
-      <p id="status" class="status">Connecting…</p>
-      <section class="dashboard-grid">
-        <div class="status-card"><span>Connected clients</span><strong id="connected-clients">0</strong></div>
-        <div class="status-card"><span>Audience/fallback clients</span><strong id="participant-clients">0</strong></div>
-        <div class="status-card"><span>Output tab</span><strong id="output-connected">Offline</strong></div>
-        <div class="status-card"><span>Room energy</span><strong id="room-energy">0%</strong></div>
-      </section>
-      <section class="status-card wide">
-        <span>Latest input</span>
-        <strong id="latest-input">No vibe received</strong>
-        <p id="latest-values" class="muted small">Waiting for a participant, booth, or synthetic source.</p>
-      </section>
-      <section class="status-card wide">
-        <span>Music parameters</span>
-        <p id="music-params" class="muted small">Tempo 92 BPM · Cutoff 18% · Density 15% · Layers 1/4</p>
-      </section>
-      <div class="actions">
-        <a class="button" href="/fallback.html">Open fallback controls</a>
-        <a class="button secondary" href="/output.html">Open output tab</a>
-      </div>
-    </main>
-    <script type="module" src="/src/status.ts"></script>
-  </body>
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>AI-DJ Status</title></head>
+  <body><div id="root"></div><script type="module" src="/src/react/main.tsx"></script></body>
 </html>

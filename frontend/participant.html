@@ -1,39 +1,5 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Join AI-DJ</title>
-  </head>
-  <body>
-    <nav class="app-nav" aria-label="AI-DJ navigation">
-      <a href="/">Home</a><a href="/output.html">Output</a><a href="/participant.html" aria-current="page">Join room</a><a href="/booth.html">Booth</a><a href="/status.html">Status</a>
-    </nav>
-    <main class="panel participant-panel" aria-busy="false">
-      <p class="eyebrow">Audience phone mode</p>
-      <h1>Move with the music.</h1>
-      <section class="participant-consent" aria-labelledby="consent-title">
-        <h2 id="consent-title">Your privacy stays with you.</h2>
-        <p class="muted">Camera movement and microphone energy are measured on this phone. Raw video and audio never leave your device; only lightweight vibe numbers join the room.</p>
-      </section>
-      <label class="name-field" for="participant-name">
-        <span>Your name</span>
-        <input id="participant-name" type="text" autocomplete="name" maxlength="24" placeholder="e.g. Maya" aria-describedby="consent-title" />
-      </label>
-      <button id="join-button" class="button participant-join-button" type="button">Join the room</button>
-      <button id="leave-button" class="button secondary participant-leave-button" type="button" hidden>Leave the room</button>
-      <p id="status" class="status" role="status" aria-live="polite" aria-atomic="true" tabindex="-1">Not connected</p>
-      <section class="participant-camera-stage">
-        <div id="participant-energy" class="participant-energy-ring">
-          <video id="camera" autoplay muted playsinline aria-label="Your private camera preview"></video>
-        </div>
-      </section>
-      <p id="contribution" class="contribution" role="status" aria-live="polite">Waiting for permission and connection</p>
-      <div class="meters participant-meters">
-        <label>Motion <meter id="motion-meter" min="0" max="1" value="0" aria-label="Motion contribution"></meter></label>
-        <label>Sound <meter id="audio-meter" min="0" max="1" value="0" aria-label="Sound contribution"></meter></label>
-      </div>
-    </main>
-    <script type="module" src="/src/participant.ts"></script>
-  </body>
+  <head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" /><title>Join AI-DJ</title></head>
+  <body><div id="root"></div><script type="module" src="/src/react/main.tsx"></script></body>
 </html>

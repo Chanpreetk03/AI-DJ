@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-DJ UI Prototype</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  </head>
+  <body class="dj-prototype-body">
+    <main class="prototype-shell">
+      <section class="dj-variant pulse-variant" data-variant="pulse">
+        <header class="prototype-topbar"><a>AI—DJ</a><span><i data-lucide="radio-tower"></i> ROOM 04 / LIVE</span><button aria-label="Open settings"><i data-lucide="settings-2"></i></button></header>
+        <div class="pulse-layout">
+          <aside class="pulse-rail"><span>01</span><i></i><span>NOW</span><i></i><span>02</span></aside>
+          <section class="pulse-main"><p class="eyebrow">THE CROWD IS ASKING FOR</p><h1>MORE<br><em>MOMENTUM.</em></h1><div class="energy-orbit"><div class="energy-core"><b id="pulse-energy">78%</b><span>ROOM ENERGY</span></div><i></i><i></i><i></i><i></i></div><div class="pulse-foot"><span>↑ +12% AFTER LAST TRANSITION</span><strong>01:36 <small>TO NEXT PHRASE</small></strong></div></section>
+          <aside class="pulse-decision"><p class="eyebrow">DJ DECISION</p><h2>Lift the room<br>without rushing it.</h2><div class="decision-line"><span>NOW</span><b>GROOVE</b></div><div class="decision-line highlight"><span>NEXT</span><b>MELODIC LIFT</b></div><button class="prototype-action" data-energy="peak">Commit next phrase <i data-lucide="arrow-up-right"></i></button></aside>
+        </div>
+      </section>
+
+      <section class="dj-variant constellation-variant" data-variant="constellation" hidden>
+        <header class="prototype-topbar"><a>AI—DJ</a><span>COLLECTIVE SIGNAL / 28 DEVICES</span><button aria-label="Open navigation"><i data-lucide="menu"></i></button></header>
+        <div class="constellation-layout"><section class="constellation-copy"><p class="eyebrow">THE ROOM, NOT A DASHBOARD</p><h1>EVERYONE<br>IS <em>IN THE MIX.</em></h1><p>Read the energy as a live constellation. Each point is a private vibe signal; together they guide the next musical move.</p><button class="prototype-action" data-energy="active">Send a lift <i data-lucide="sparkles"></i></button></section><section class="constellation-map" aria-label="Crowd energy map"><div class="map-rings"></div><div class="map-center"><b id="map-energy">78</b><span>ENERGY</span></div><div class="signal-dot dot-a"></div><div class="signal-dot dot-b"></div><div class="signal-dot dot-c"></div><div class="signal-dot dot-d"></div><div class="signal-dot dot-e"></div><div class="signal-dot dot-f"></div><div class="signal-dot dot-g"></div><div class="signal-dot dot-h"></div><div class="signal-dot dot-i"></div></section><aside class="signal-readout"><div><span>MOTION-LED</span><b>64%</b></div><div><span>RHYTHM-LED</span><b>72%</b></div><div><span>COHERENCE</span><b>HIGH</b></div><p>The crowd is moving together. Keep the groove, introduce one melodic phrase.</p></aside></div>
+      </section>
+
+      <section class="dj-variant tape-variant" data-variant="tape" hidden>
+        <header class="prototype-topbar"><a>AI—DJ</a><span>HUMAN + MACHINE SET</span><button aria-label="Open library"><i data-lucide="library-big"></i></button></header>
+        <div class="tape-layout"><aside class="tape-context"><p class="eyebrow">SET / 23:14</p><h1>THE<br><em>ARC.</em></h1><p>A musical story that reacts, not a playlist that shuffles.</p><div class="arc-meter"><i></i><i></i><i></i><i></i><i></i></div></aside><section class="tape-deck"><div class="record"><div></div></div><p>PLAYING INTO THE ROOM</p><h2>Rhythm Factory<br><em>× Glitch Stairs</em></h2><div class="phrase-wave"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="deck-controls"><button aria-label="Previous phrase"><i data-lucide="skip-back"></i></button><button class="round-play" aria-label="Pause"><i data-lucide="pause"></i></button><button aria-label="Next phrase"><i data-lucide="skip-forward"></i></button></div></section><aside class="tape-next"><p class="eyebrow">NEXT AT BAR 33</p><div class="next-card"><span>THE AI IS PREPARING</span><h2>More drums,<br>then space.</h2><p>Reason: sustained energy + high movement coherence.</p></div><label>Room energy <output id="tape-energy">78%</output><input id="energy-control" type="range" min="15" max="100" value="78"></label></aside></div>
+      </section>
+    </main>
+    <nav id="dj-prototype-switcher" class="prototype-switcher" aria-label="UI prototype variants"><button data-direction="previous" aria-label="Previous design"><i data-lucide="arrow-left"></i></button><strong id="dj-prototype-label">01 — Pulse Stage</strong><button data-direction="next" aria-label="Next design"><i data-lucide="arrow-right"></i></button></nav>
+    <script type="module" src="/src/djUiPrototype.ts"></script>
+  </body>
+</html>

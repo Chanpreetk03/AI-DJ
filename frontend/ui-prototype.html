@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI-DJ UI Prototype</title>
+  </head>
+  <body class="prototype-body">
+    <main class="prototype-shell">
+      <section data-variant="stage" class="prototype-variant stage-variant">
+        <header class="prototype-topbar"><span class="prototype-logo">AI—DJ</span><span class="prototype-live">● LIVE ROOM</span><button>End session</button></header>
+        <div class="stage-hero">
+          <div class="stage-copy"><p>THE CROWD IS</p><h1>RISING.</h1><span>+18% energy in the last 30 seconds</span></div>
+          <div class="stage-orb"><strong>78%</strong><span>ROOM ENERGY</span><i></i><i></i><i></i></div>
+        </div>
+        <div class="stage-footer"><div><span>DJ INTENT</span><strong>Lift</strong></div><div><span>NOW SHAPING</span><strong>Glitch Stairs</strong></div><div><span>PEOPLE MOVING</span><strong>24</strong></div><button class="prototype-primary">Start audio</button></div>
+      </section>
+
+      <section data-variant="cockpit" class="prototype-variant cockpit-variant" hidden>
+        <aside class="cockpit-rail"><span class="prototype-logo">A/D</span><a class="active">Room</a><a>Music</a><a>People</a><a>Settings</a></aside>
+        <div class="cockpit-main"><header><div><p>COLLEGE NIGHT / ROOM 8F2A</p><h1>Command the moment.</h1></div><button class="prototype-primary">Invite crowd</button></header><section class="cockpit-grid"><article class="energy-module"><span>LIVE ENERGY</span><strong>78</strong><small>/100</small><div class="energy-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><p>Rising · high confidence</p></article><article class="intent-module"><span>DJ BRAIN</span><h2>Lift → Peak</h2><p>Holding for the next 8-bar boundary.</p><button>Hold direction</button></article><article class="track-module"><span>UP NEXT</span><h2>Glitch Stairs</h2><p>Compatible key · phrase ready</p><div class="track-wave"></div></article><article class="crowd-module"><span>CROWD SIGNAL</span><div><b>Motion</b><em>84%</em></div><div><b>Rhythm</b><em>72%</em></div><div><b>Coherence</b><em>68%</em></div></article></section></div>
+      </section>
+
+      <section data-variant="timeline" class="prototype-variant timeline-variant" hidden>
+        <header class="timeline-header"><div><span class="prototype-logo">AI—DJ</span><p>ONE ROOM / ONE SHARED SET</p></div><button class="prototype-primary">Invite people</button></header>
+        <section class="timeline-now"><div><span>RIGHT NOW</span><h1>KEEP THE<br />GROOVE.</h1><p>The room is stable. Build energy without changing the track.</p><button>Hold this moment</button></div><div class="timeline-energy"><span>ROOM PULSE</span><strong>62%</strong><svg viewBox="0 0 500 180" aria-hidden="true"><path d="M0 130 C45 120 70 145 105 110 S165 60 205 95 S260 135 305 70 S380 25 420 60 S470 105 500 35" /></svg></div></section>
+        <section class="timeline-queue"><article class="done"><span>JUST PLAYED</span><h2>Warm opener</h2><p>42% → 58%</p></article><article class="current"><span>NOW PLAYING</span><h2>Glitch Stairs</h2><p>Groove arrangement</p></article><article><span>PREPARING</span><h2>Peak phrase</h2><p>In 14 seconds</p></article></section>
+      </section>
+    </main>
+    <nav id="prototype-switcher" class="prototype-switcher" aria-label="Prototype variants"><button data-direction="previous" aria-label="Previous design">←</button><strong id="prototype-label">Stage — Immersive energy</strong><button data-direction="next" aria-label="Next design">→</button></nav>
+    <script type="module" src="/src/uiPrototype.ts"></script>
+  </body>
+</html>

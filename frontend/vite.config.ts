@@ -29,6 +29,9 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
         participant: resolve(__dirname, "participant.html"),
         output: resolve(__dirname, "output.html"),
+        djUiPrototype: resolve(__dirname, "dj-ui-prototype.html"),
+        uiPrototype: resolve(__dirname, "ui-prototype.html"),
+        experiencePrototype: resolve(__dirname, "experience-prototype.html"),
         booth: resolve(__dirname, "booth.html"),
         status: resolve(__dirname, "status.html"),
         fallback: resolve(__dirname, "fallback.html")
