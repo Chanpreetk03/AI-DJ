@@ -207,3 +207,9 @@ Sources:
 
 - [Spotify Search API](https://developer.spotify.com/documentation/web-api/reference/search)
 - [Spotify compliance tips](https://developer.spotify.com/compliance-tips)
+
+## Current implementation update
+
+Automatic mode does not require the host to provide or curate playlists. It builds a provider search query from the selected language and current room-energy band, for example `calm English playlist`, `groove Hindi playlist`, or `high energy remix Punjabi playlist`. It searches Spotify for matching playlists, collects their track metadata, and then uses the shared selection engine to choose an eligible track.
+
+The host can still choose a language and remix preference. Search results remain separate Spotify track identities, so original tracks, remixes, extended mixes, and edits are not collapsed into one another. Local AI-DJ audio remains available as the fallback and is not replaced by this integration.

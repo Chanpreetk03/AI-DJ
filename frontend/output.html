@@ -50,7 +50,7 @@
         <button id="play-spotify" class="button secondary" type="button">Play Spotify track</button>
         <details class="spotify-auto-panel">
           <summary>Automatic vibe DJ</summary>
-          <p class="small muted">Assign Spotify playlists to energy bands. The host remains in control; switching waits for a cooldown.</p>
+          <p class="small muted">AI-DJ searches Spotify for a playlist matching the room energy and language. The host remains in control; switching waits for a cooldown.</p>
           <label for="auto-language">Language preference</label>
           <select id="auto-language">
             <option value="">Mixed language</option>
@@ -64,11 +64,6 @@
             <option value="avoid">Prefer originals</option>
             <option value="prefer">Prefer remixes at peak</option>
           </select>
-          <label>Calm playlist <input id="auto-calm-playlist" type="text" placeholder="spotify:playlist:…" /></label>
-          <label>Warm playlist <input id="auto-warm-playlist" type="text" placeholder="spotify:playlist:…" /></label>
-          <label>Groove playlist <input id="auto-groove-playlist" type="text" placeholder="spotify:playlist:…" /></label>
-          <label>Active playlist <input id="auto-active-playlist" type="text" placeholder="spotify:playlist:…" /></label>
-          <label>Peak / remix playlist <input id="auto-peak-playlist" type="text" placeholder="spotify:playlist:…" /></label>
           <button id="toggle-auto-dj" class="button secondary" type="button">Start automatic vibe DJ</button>
           <p id="auto-dj-status" class="rehearsal-status">Automatic mode is off.</p>
         </details>

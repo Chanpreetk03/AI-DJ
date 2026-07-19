@@ -43,14 +43,18 @@ const participantUrl = new URL("/participant.html", window.location.origin).toSt
 let targetEnergy = 0;
 let displayedEnergy = 0;
 let isStartingAudio = false;
+let localAudioWasStarted = false;
+let spotifyOwnsAudio = false;
 let isAutomaticDjEnabled = false;
-let isLoadingAutomaticPlaylists = false;
+let isLoadingAutomaticCandidates = false;
 let automaticCandidates: SpotifyTrackSearchResult[] = [];
 let automaticProfiles: TrackProfile[] = [];
 let automaticLastTrackUri: string | undefined;
 let automaticLastSelectionAt = 0;
 let automaticNextSelectionAt = 0;
 let automaticLastBand: EnergyBand | undefined;
+let automaticLoadedBand: EnergyBand | undefined;
+let automaticLanguage = "";
 
 if (!spotify.isConfigured) {
   connectSpotify.title = "Configure VITE_SPOTIFY_CLIENT_ID to enable Spotify";
@@ -71,8 +75,8 @@ connectSpotify.addEventListener("click", async () => {
 playSpotify.addEventListener("click", async () => {
   playSpotify.disabled = true;
   try {
-    await spotify.playTrack(spotifyTrackUri.value.trim());
-    spotifyStatus.textContent = "Spotify playback requested — local AI-DJ remains available";
+    await playSpotifyExclusively(spotifyTrackUri.value.trim());
+    spotifyStatus.textContent = "Spotify playback requested — local AI-DJ paused";
   } catch (error) {
     console.error(error);
     spotifyStatus.textContent = error instanceof Error ? error.message : "Spotify playback failed";
@@ -93,6 +97,7 @@ toggleAutoDj.addEventListener("click", () => void toggleAutomaticDj());
 async function toggleAutomaticDj(): Promise<void> {
   if (isAutomaticDjEnabled) {
     isAutomaticDjEnabled = false;
+    await releaseSpotifyAudio();
     toggleAutoDj.textContent = "Start automatic vibe DJ";
     autoDjStatus.textContent = "Automatic mode is off.";
     return;
@@ -102,53 +107,43 @@ async function toggleAutomaticDj(): Promise<void> {
     autoDjStatus.textContent = "Configure Spotify before starting automatic mode.";
     return;
   }
-  isLoadingAutomaticPlaylists = true;
+  isLoadingAutomaticCandidates = true;
   toggleAutoDj.disabled = true;
   autoDjStatus.textContent = "Loading playlist lanes…";
   try {
-    const lanes: Array<{ band: EnergyBand; inputId: string }> = [
-      { band: "calm", inputId: "auto-calm-playlist" },
-      { band: "warm", inputId: "auto-warm-playlist" },
-      { band: "groove", inputId: "auto-groove-playlist" },
-      { band: "active", inputId: "auto-active-playlist" },
-      { band: "peak", inputId: "auto-peak-playlist" },
-    ];
-    const loaded = await Promise.all(lanes.map(async lane => {
-      const input = document.querySelector<HTMLInputElement>(`#${lane.inputId}`)!;
-      const playlistUri = input.value.trim();
-      if (playlistUri.length === 0) return { lane, tracks: [] as SpotifyTrackSearchResult[] };
-      return { lane, tracks: await spotify.getPlaylistTracks(playlistUri) };
-    }));
-    automaticCandidates = loaded.flatMap(result => result.tracks).filter((track, index, tracks) => tracks.findIndex(other => other.uri === track.uri) === index);
-    const language = autoLanguage.value.trim();
-    automaticProfiles = loaded.flatMap(result => result.tracks.map(track => ({
-      trackUri: track.uri,
-      languageTags: language.length === 0 ? [] : [language],
-      energyBand: result.lane.band,
-      variantType: result.lane.band === "peak" ? "remix" : "original",
-      hostTags: result.lane.band === "peak" ? ["preferred"] : [],
-      playCount: 0,
-    })));
-    if (automaticCandidates.length === 0) {
-      throw new Error("Add at least one Spotify playlist URI.");
-    }
+    automaticLanguage = autoLanguage.value.trim();
+    automaticCandidates = [];
+    automaticProfiles = [];
+    automaticLoadedBand = undefined;
     isAutomaticDjEnabled = true;
     toggleAutoDj.textContent = "Stop automatic vibe DJ";
-    autoDjStatus.textContent = `Automatic mode ready · ${automaticCandidates.length} tracks loaded`;
+    autoDjStatus.textContent = "Automatic mode ready · waiting for room vibe";
     await maybeSelectAutomaticTrack();
   } catch (error) {
     console.error(error);
     autoDjStatus.textContent = error instanceof Error ? error.message : "Could not load automatic playlists";
   } finally {
-    isLoadingAutomaticPlaylists = false;
+    isLoadingAutomaticCandidates = false;
     toggleAutoDj.disabled = false;
   }
 }
 
 async function maybeSelectAutomaticTrack(): Promise<void> {
-  if (!isAutomaticDjEnabled || isLoadingAutomaticPlaylists) return;
+  if (!isAutomaticDjEnabled || isLoadingAutomaticCandidates) return;
   const now = Date.now();
   const band = musicSelectionEngine.energyBand(targetEnergy);
+  if (automaticLoadedBand !== band || automaticLanguage !== autoLanguage.value.trim()) {
+    isLoadingAutomaticCandidates = true;
+    try {
+      await loadAutomaticBand(band);
+    } catch (error) {
+      console.error(error);
+      autoDjStatus.textContent = error instanceof Error ? error.message : "Could not search Spotify for this vibe";
+      return;
+    } finally {
+      isLoadingAutomaticCandidates = false;
+    }
+  }
   const minimumDwellMilliseconds = 45_000;
   if (now < automaticNextSelectionAt && (automaticLastBand === band || now - automaticLastSelectionAt < minimumDwellMilliseconds)) return;
   const decision = musicSelectionEngine.selectNext({
@@ -168,7 +163,7 @@ async function maybeSelectAutomaticTrack(): Promise<void> {
     return;
   }
   try {
-    await spotify.playTrack(decision.candidate.uri);
+    await playSpotifyExclusively(decision.candidate.uri);
     automaticLastTrackUri = decision.candidate.uri;
     automaticLastSelectionAt = now;
     automaticNextSelectionAt = now + decision.candidate.durationMilliseconds;
@@ -178,6 +173,34 @@ async function maybeSelectAutomaticTrack(): Promise<void> {
     console.error(error);
     autoDjStatus.textContent = error instanceof Error ? error.message : "Automatic Spotify playback failed";
   }
+}
+
+async function loadAutomaticBand(band: EnergyBand): Promise<void> {
+  const language = autoLanguage.value.trim();
+  const languageQuery = language.length === 0 ? "mixed language" : language;
+  const bandQuery: Record<EnergyBand, string> = { calm: "calm", warm: "chill warm-up", groove: "groove", active: "energetic dance", peak: "high energy remix" };
+  const query = `${bandQuery[band]} ${languageQuery} playlist`;
+  autoDjStatus.textContent = `Searching Spotify for “${query}”…`;
+  const playlists = await spotify.searchPlaylists(query);
+  if (playlists.length === 0) {
+    throw new Error(`Spotify found no playlist for ${query}.`);
+  }
+  const tracks = (await Promise.all(playlists.slice(0, 3).map(playlist => spotify.getPlaylistTracks(playlist.uri)))).flat();
+  automaticCandidates = tracks.filter((track, index, allTracks) => allTracks.findIndex(other => other.uri === track.uri) === index);
+  automaticProfiles = automaticCandidates.map(track => ({
+    trackUri: track.uri,
+    languageTags: language.length === 0 ? [] : [language],
+    energyBand: band,
+    variantType: band === "peak" ? "remix" : "original",
+    hostTags: band === "peak" ? ["preferred"] : [],
+    playCount: 0,
+  }));
+  if (automaticCandidates.length === 0) {
+    throw new Error(`The Spotify playlists for ${query} had no playable tracks.`);
+  }
+  automaticLanguage = language;
+  automaticLoadedBand = band;
+  autoDjStatus.textContent = `Found ${automaticCandidates.length} tracks for ${query}`;
 }
 
 async function searchSpotifyTracks(): Promise<void> {
@@ -235,13 +258,38 @@ function createTrackResult(track: SpotifyTrackSearchResult): HTMLElement {
 async function playSpotifyTrack(uri: string): Promise<void> {
   playSpotify.disabled = true;
   try {
-    await spotify.playTrack(uri);
-    spotifyStatus.textContent = "Spotify playback requested — local AI-DJ remains available";
+    await playSpotifyExclusively(uri);
+    spotifyStatus.textContent = "Spotify playback requested — local AI-DJ paused";
   } catch (error) {
     console.error(error);
     spotifyStatus.textContent = error instanceof Error ? error.message : "Spotify playback failed";
   } finally {
     playSpotify.disabled = false;
+  }
+}
+
+async function playSpotifyExclusively(uri: string): Promise<void> {
+  const shouldPauseLocalAudio = localAudioWasStarted && !spotifyOwnsAudio;
+  if (shouldPauseLocalAudio) {
+    await stemPack.pause();
+  }
+  try {
+    await spotify.playTrack(uri);
+    spotifyOwnsAudio = true;
+  } catch (error) {
+    if (shouldPauseLocalAudio) {
+      await stemPack.start();
+    }
+    throw error;
+  }
+}
+
+async function releaseSpotifyAudio(): Promise<void> {
+  if (!spotifyOwnsAudio) return;
+  await spotify.pause();
+  spotifyOwnsAudio = false;
+  if (localAudioWasStarted) {
+    await stemPack.start();
   }
 }
 
@@ -318,12 +366,17 @@ async function startAudioOutput(): Promise<void> {
   startAudio.textContent = "Starting audio…";
   let timeoutId: number | undefined;
   try {
+    if (spotifyOwnsAudio) {
+      await spotify.pause();
+      spotifyOwnsAudio = false;
+    }
     await Promise.race([
       stemPack.start(),
       new Promise<never>((_, reject) => {
         timeoutId = window.setTimeout(() => reject(new Error("Audio startup timed out. Check the browser output device.")), 30_000);
       }),
     ]);
+    localAudioWasStarted = true;
     startAudio.textContent = "Audio playing";
   } catch (error) {
     console.error(error);

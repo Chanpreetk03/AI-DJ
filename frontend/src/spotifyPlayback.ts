@@ -22,6 +22,7 @@ export type SpotifyTrackSearchResult = {
   explicit: boolean;
   isPlayable: boolean;
 };
+export type SpotifyPlaylistSearchResult = { uri: string; name: string; description: string; owner: string };
 
 declare global {
   interface Window {
@@ -91,6 +92,10 @@ export class SpotifyPlaybackAdapter {
     }
   }
 
+  public async pause(): Promise<void> {
+    await this.player?.pause();
+  }
+
   public async searchTracks(query: string): Promise<SpotifyTrackSearchResult[]> {
     if (this.accessToken === undefined) {
       throw new Error("Connect Spotify before searching.");
@@ -136,6 +141,25 @@ export class SpotifyPlaybackAdapter {
     }
     const body = await response.json() as { items?: Array<{ track?: { uri: string; name: string; artists: Array<{ name: string }>; album: { name: string; release_date: string }; duration_ms: number; explicit: boolean; is_playable?: boolean } }> };
     return (body.items ?? []).flatMap(item => item.track === undefined ? [] : [this.toSearchResult(item.track)]);
+  }
+
+  public async searchPlaylists(query: string): Promise<SpotifyPlaylistSearchResult[]> {
+    if (this.accessToken === undefined) {
+      throw new Error("Connect Spotify before searching playlists.");
+    }
+    const url = new URL("https://api.spotify.com/v1/search");
+    url.search = new URLSearchParams({ q: query, type: "playlist", limit: "5" }).toString();
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+    if (!response.ok) {
+      throw new Error(`Spotify playlist search failed (${response.status}).`);
+    }
+    const body = await response.json() as { playlists?: { items?: Array<{ uri: string; name: string; description?: string; owner?: { display_name?: string; id?: string } }> } };
+    return (body.playlists?.items ?? []).filter(playlist => playlist.uri).map(playlist => ({
+      uri: playlist.uri,
+      name: playlist.name,
+      description: playlist.description ?? "",
+      owner: playlist.owner?.display_name ?? playlist.owner?.id ?? "Spotify",
+    }));
   }
 
   private toSearchResult(track: { uri: string; name: string; artists: Array<{ name: string }>; album: { name: string; release_date: string }; duration_ms: number; explicit: boolean; is_playable?: boolean }): SpotifyTrackSearchResult {

@@ -154,20 +154,20 @@ This resolves duplicate names by identity and context, not by guessing. `Song`, 
 
 ## Automatic vibe and language flow
 
-The first automatic version should use playlist lanes, because language and remix intent are explicit and reviewable:
+The first automatic version should search Spotify for playlists, because the host should only provide language and remix preferences:
 
 ```text
 Language: Punjabi
-  calm/warm   -> Punjabi warm-up playlist
-  groove      -> Punjabi groove playlist
-  active      -> Punjabi active playlist
-  peak        -> Punjabi peak/remix playlist
+  calm/warm   -> search `calm Punjabi playlist`
+  groove      -> search `groove Punjabi playlist`
+  active      -> search `energetic dance Punjabi playlist`
+  peak        -> search `high energy remix Punjabi playlist`
 
 Language: English
-  calm/warm   -> English warm-up playlist
-  groove      -> English groove playlist
-  active      -> English active playlist
-  peak        -> English peak/remix playlist
+  calm/warm   -> search `calm English playlist`
+  groove      -> search `groove English playlist`
+  active      -> search `energetic dance English playlist`
+  peak        -> search `high energy remix English playlist`
 ```
 
 The host can configure one language, several allowed languages, or mixed-language mode. Room energy selects a target energy band; hysteresis prevents oscillation near thresholds; a minimum dwell or next-track boundary prevents frantic changes.
@@ -187,7 +187,7 @@ Remixes are first-class Track Candidates. The engine should:
 - preserve Spotify's original title and URI;
 - show remix/edit/extended/live text exactly as returned;
 - allow `avoid`, `allow`, and `prefer` remix policies;
-- support a dedicated Remix playlist or Track Profile tag;
+- prefer search queries containing `remix` for the peak band;
 - prevent the original and its remix from being selected back-to-back unless requested;
 - never attempt to create a remix from a Spotify recording.
 
@@ -206,7 +206,7 @@ Remixes are first-class Track Candidates. The engine should:
 2. Move current search results into `SpotifyCatalogAdapter`.
 3. Add a deterministic `MusicSelectionEngine` with unit tests for duplicate titles, language fallback, energy bands, remix preference, cooldowns, and no-candidate behavior.
 4. Add host controls for language, remix preference, explicit policy, and manual/automatic mode.
-5. Add playlist-lane configuration using Spotify playlist URIs.
+5. Add search-driven automatic lane loading using language and energy queries.
 6. Add automatic queue decisions at track boundaries with hysteresis.
 7. Add local playback fallback and status explanations.
 8. Add Apple Music adapters later without changing the engine.
