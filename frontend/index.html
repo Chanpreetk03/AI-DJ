@@ -6,13 +6,17 @@
     <title>AI-DJ</title>
   </head>
   <body>
+    <nav class="app-nav" aria-label="AI-DJ navigation">
+      <a href="/" aria-current="page">Home</a><a href="/output.html">Output</a><a href="/participant.html">Join room</a><a href="/booth.html">Booth</a><a href="/status.html">Status</a>
+    </nav>
     <main class="landing host-landing">
       <div class="landing-light landing-light-one" aria-hidden="true"></div>
       <div class="landing-light landing-light-two" aria-hidden="true"></div>
       <p class="eyebrow landing-reveal">Crowd-reactive music</p>
       <h1 class="landing-reveal landing-title">Are you ready<br />to rock and roll?</h1>
       <p class="landing-reveal muted landing-copy">One room. One beat. Everyone moves the music.</p>
-      <a class="button landing-cta" href="/output.html">Yes, let’s rock <span aria-hidden="true">↗</span></a>
+      <button id="create-room" class="button landing-cta" type="button">Start a room <span aria-hidden="true">↗</span></button>
+      <p id="landing-status" class="status" role="status" aria-live="polite"></p>
       <div class="actions landing-secondary-actions">
         <a class="button secondary" href="/status.html">Open status</a>
         <a class="button secondary" href="/booth.html">Open Booth Device</a>
@@ -20,5 +24,6 @@
       <p class="landing-footnote landing-reveal">Host console · best on a large screen</p>
     </main>
     <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/landing.ts"></script>
   </body>
 </html>

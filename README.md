@@ -1,16 +1,145 @@
 # AI-DJ
 
-The current slice is a local ASP.NET Core + SignalR loop with TypeScript browser clients.
+> A crowd-reactive DJ experience where audience phones influence a live music mix—without sending raw camera or microphone streams to the server.
 
-## Run locally
+AI-DJ is a .NET + TypeScript prototype for events, college fests, and hackathon demos. Audience members join a room from their phones and contribute lightweight **vibe vectors** derived locally from camera movement, microphone energy, onsets, and device motion. The server aggregates the room state and the output browser uses that state to select, arrange, and transition between bundled music assets.
 
-Start the backend:
+## Contents
 
-```powershell
-dotnet run --project backend/AiDj.Api.csproj
+- [How it works](#how-it-works)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Quick start](#quick-start)
+- [Running a phone demo](#running-a-phone-demo)
+- [Music library](#music-library)
+- [Rooms and host access](#rooms-and-host-access)
+- [Configuration](#configuration)
+- [Testing](#testing)
+- [Project structure](#project-structure)
+- [Current scope and roadmap](#current-scope-and-roadmap)
+
+## How it works
+
+1. A host opens the landing page and selects **Start a room**.
+2. The API creates an isolated room and returns a short-lived, room-scoped host token. The browser stores it locally and opens the output console.
+3. The host shares the participant URL/QR code. It includes the room ID, but never the host token.
+4. Each participant grants camera and microphone permission. Their browser extracts local features and sends only a JSON `VibeVector` over SignalR.
+5. The server aggregates active vectors into the authoritative `RoomState` and maps it to `MusicParams`.
+6. The output browser analyzes the loaded music library, chooses a suitable track or stem pack, adjusts its arrangement, and schedules phrase-aligned transitions.
+
+The output page must receive one click on **Start audio output**, because browsers prohibit autoplay with sound.
+
+## Features
+
+### Audience phone mode
+
+- **Camera motion sensing** using low-resolution frame differencing; no video frames leave the device.
+- **Microphone features**: local RMS loudness and a lightweight onset count; no recorded audio leaves the device.
+- **Device-motion sensing** when supported, blended with camera movement.
+- Clear join/leave behavior, connection status, permission feedback, and shareable room links.
+- Secure-context guidance: phones need HTTPS for camera and microphone access.
+
+### Server-owned realtime room state
+
+- ASP.NET Core + SignalR hub for low-latency bidirectional events.
+- Room-isolated connections and SignalR groups, so one room cannot affect another room's state or broadcasts.
+- Stale inputs expire after two seconds to prevent disconnected devices from holding the energy level.
+- A `RoomState` preserves distinct motion, microphone, onset, trend, volatility, coherence, confidence, and participant-count signals.
+- A `VibeToMusicMapper` derives tempo, filter cutoff, note density, and active-layer count from the room rather than trusting any browser.
+
+### Reactive music output
+
+- Web Audio-based playback from local, bundled assets rather than oscillator-generated demo tones.
+- A JSON music manifest in `frontend/public/stems/music-library.json` defines tracks, stem packs, phrase length, roles, and licensing references.
+- First-run browser analysis measures each track's BPM, beat confidence, loudness, dynamics, transient density, brightness, and intensity. Profiles are cached in `localStorage` for faster later starts.
+- A transparent DJ ranking policy uses **measured audio profiles** plus room energy, onset density, energy trend, coherence, volatility, and recent play history.
+- Track changes are throttled, loaded on demand, scheduled on phrase boundaries, and crossfaded to prevent abrupt switching.
+- Stem packs can independently vary drums, bass, harmony, flute, and melody layers as room energy evolves.
+
+### Operator tools
+
+- **Output console**: room energy, tempo, active layers, people connected, audio start/stop, and participant invite QR.
+- **Booth device mode**: laptop fallback that sends the same type of vibe vector when audience phone sensing is unavailable.
+- **Synthetic rehearsal mode**: repeatable low/medium/high crowd scenarios for testing a demo without phones.
+- **Status monitor**: operator-only room health, active sources, latest vector, aggregate state, and music parameters.
+- Navigation keeps the current room ID across the host experience.
+
+## Architecture
+
+```text
+Participant phone                         Output browser
+camera + microphone + motion              Web Audio music decks
+        │ local feature extraction                 ▲
+        └──── VibeVector over SignalR ────┐        │ RoomState + MusicParams
+                                           ▼        │
+                                  ASP.NET Core / SignalR
+                                  room registry + aggregation
+                                  authoritative RoomState
+                                           │
+                                           └── isolated room groups
 ```
 
-In another terminal, install and start the frontend:
+### Realtime data model
+
+Only this compact structure crosses the network from participants:
+
+```ts
+type VibeVector = {
+  motion: number;          // 0–1
+  motionVariance: number;  // 0–1
+  audioRms: number;        // 0–1
+  onsetRate: number;       // onsets per recent second
+  timestamp: number;
+};
+```
+
+The server combines the live vectors into a `RoomState`. The key signals are:
+
+| Signal | Meaning | Used for |
+| --- | --- | --- |
+| `energy` | Combined movement, variance, loudness, and onsets | Overall musical intensity |
+| `coherence` | How similarly participants are moving | Density and stability decisions |
+| `motionEnergy` | Camera/device movement component | Crowd activity |
+| `audioEnergy` | Microphone loudness component | Musical pulse and filter/density |
+| `onsetDensity` | Local clap/beat-like changes | Rhythmic material preference |
+| `energyTrend` | Direction of recent room energy | Lifts and transition timing |
+| `volatility` | Variation across participants | Safer, less dense choices |
+| `confidence` | Confidence based on active input count | Decision stability |
+
+The browser is responsible for actual playback; the server does **not** send audio or render music.
+
+## Technology
+
+| Area | Stack |
+| --- | --- |
+| API and realtime | .NET 9, ASP.NET Core, SignalR |
+| Client | TypeScript, Vite |
+| Audio | Web Audio API |
+| Sensing | `getUserMedia`, Canvas frame differencing, Device Motion API |
+| Room invitation | `qrcode` |
+| Tests | xUnit and focused domain checks |
+
+## Quick start
+
+### Prerequisites
+
+- [.NET SDK 9](https://dotnet.microsoft.com/download)
+- Node.js 20+ and npm
+- A modern Chromium-based browser for the best camera/microphone support
+
+### 1. Start the backend
+
+```powershell
+dotnet run --project backend/AiDj.Api.csproj --launch-profile http
+```
+
+The API listens at `http://localhost:5000` by default. Confirm it is ready:
+
+```powershell
+Invoke-WebRequest http://localhost:5000/health
+```
+
+### 2. Start the frontend
 
 ```powershell
 cd frontend
@@ -18,9 +147,8 @@ npm install
 npm run dev
 ```
 
-The frontend reads its backend URL from `frontend/.env`. Copy `frontend/.env.example` when setting up a new machine. For a phone demo, set `VITE_API_URL` to the HTTPS tunnel URL before starting Vite.
+Open `http://localhost:5173`, select **Start a room**, and click **Start audio output** in the output console.
 
-Open the Vite URL, then use one tab for `participant.html`, `output.html`, or `booth.html`.
 
 ### Optional Spotify host playback
 
@@ -58,105 +186,208 @@ Click `Connect YouTube Music`, search, and choose a result. YouTube playback rem
 
 The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
 
-For operator control, open `status.html` in a separate tab. It shows connected clients, the latest source/vibe, room energy, current Music Parameters, and output-tab health. If phone sensing is unavailable, use `fallback.html` for a rehearsed synthetic sequence or manual fallback control.
+### 3. Join as a participant
 
-Validate the server-owned room aggregation and music mapping logic:
+From the output console, open the participant invitation/QR link. For laptop-only checks, open the link in another tab. For a real phone, follow the HTTPS tunnel setup below.
 
-```powershell
-dotnet run --project backend.Tests/AiDj.Api.Tests.csproj --no-restore -p:BuildProjectReferences=false
+## Running a phone demo
+
+Phone camera and microphone APIs require a secure context. `localhost` is secure only on the laptop itself; a phone needs HTTPS.
+
+### Recommended: a single ngrok tunnel
+
+Vite proxies `/hubs`, `/api`, and `/health` to the local .NET API, so only the Vite server needs to be public.
+
+1. Start the backend as shown above.
+2. Start Vite so the tunnel can reach it:
+
+   ```powershell
+   cd frontend
+   npm run dev -- --host 0.0.0.0
+   ```
+
+3. Start a tunnel:
+
+   ```powershell
+   ngrok http 5173
+   ```
+
+4. Copy the HTTPS forwarding URL and allow that exact origin before starting/restarting the backend:
+
+   ```powershell
+   $env:FRONTEND_ORIGINS = "http://localhost:5173,https://localhost:5173,https://YOUR-SUBDOMAIN.ngrok-free.dev"
+   dotnet run --project backend/AiDj.Api.csproj --launch-profile http
+   ```
+
+5. Open the HTTPS tunnel URL on the laptop, create a room, and scan/open the participant QR on the phone.
+6. Grant **Camera** and **Microphone** permissions, then move the phone and clap/speak to influence the room state.
+
+If ngrok assigns a new hostname, update `FRONTEND_ORIGINS` and restart the backend. The Vite configuration already allows `*.ngrok-free.dev` hostnames.
+
+### Local HTTPS with mkcert
+
+`mkcert` is an alternative when all devices can trust a local certificate. Create and trust a certificate for the hostname served by Vite, configure Vite HTTPS, then use that HTTPS URL on the phone. The tunnel path is simpler for a time-boxed demo.
+
+## Music library
+
+### Library and asset rules
+
+The music manifest is the source of truth:
+
+```text
+frontend/public/stems/music-library.json
 ```
 
-The check is dependency-free and exits with a non-zero status if a deterministic domain behavior regresses.
+Each entry must provide a stable `id`, title, kind (`full` or `stem-pack`), phrase-bar count, license reference, and an audio URL or analysis URL. Stem packs group compatible files by musical role.
 
-## Real phone control loop
+Keep each asset's source and redistribution license recorded alongside the library. License status is documented separately from local automatic playback so the full bundled library remains available for rehearsal and demo tuning.
 
-The phone demo needs one public HTTPS URL for the Vite frontend. Vite proxies SignalR traffic from `/hubs/dj` to the local ASP.NET backend, so a second public backend tunnel is not required.
+To add a track:
 
-### Recommended: one HTTPS ngrok tunnel
+1. Place the licensed audio under `frontend/public/stems/`.
+2. Record its source and redistribution terms in `frontend/public/stems/LICENSE.md`.
+3. Add a manifest entry with an `analysisUrl` for a stem pack or a `url` for a full track.
+4. Restart the frontend and let the first playback session analyze it.
 
-This setup exposes the Vite frontend publicly and proxies `/health` and `/hubs/dj` to the local backend. It avoids maintaining two public tunnels.
+Do not add commercial music, platform-streamed audio, or any asset that cannot legally be redistributed with this repository.
 
-Start the backend locally:
+### Important licensing status
 
-```powershell
-dotnet run --project backend/AiDj.Api.csproj --no-launch-profile
-```
+`Glitch Stairs` and `The Way It Is` are documented as CC0 assets. Some locally added rehearsal tracks, including `Rhythm Factory`, still have **unverified provenance**. They are for local development only and must not be published or distributed until their source URL and license are recorded in `frontend/public/stems/LICENSE.md`.
 
-Start Vite on the tunnel target port:
+### What "AI" means in the current version
 
-```powershell
-cd frontend
-npm run dev -- --host 0.0.0.0
-```
+The current intelligence is an explainable audio-aware ranking policy, not a generative music model. It analyzes the actual loaded audio and ranks candidates by measured intensity, BPM, rhythmicity, dynamics, beat confidence, room fit, and novelty. This is deliberate: deterministic beat/phrase safety is more reliable for live playback than an unconstrained generative model.
 
-Start the tunnel from another terminal:
+The roadmap includes recording anonymized decision outcomes and training a ranking model once there is enough real session data. Any learned model must remain behind licensing, beat-alignment, and transition-safety rules.
 
-```powershell
-ngrok http 5173
-```
+## Rooms and host access
 
-Copy the generated HTTPS hostname and restart the backend with the exact public origin allowed:
+- `POST /api/rooms` creates a room and returns `{ roomId, hostToken }`.
+- The host token is HMAC-signed, room-scoped, and expires after 12 hours.
+- The landing page stores the token in that browser's `localStorage`; it is supplied when joining privileged SignalR roles.
+- `output`, `booth`, `status`, and `synthetic` roles require a valid token. `participant` does not.
+- Host-token enforcement is optional. It is disabled by default for anonymous party rooms and can be enabled later with `ROOM_REQUIRE_HOST_TOKEN=true`.
+- Participants receive room IDs in URLs but never receive host tokens.
 
-```powershell
-$env:FRONTEND_ORIGINS = "http://localhost:5173,https://localhost:5173,https://YOUR-SUBDOMAIN.ngrok-free.dev"
-dotnet run --project backend/AiDj.Api.csproj --no-launch-profile
-```
+The current room registry is in-memory. Restarting the API clears active rooms and host tokens issued with the development-generated secret. See the production roadmap for Redis-backed durability and full account authentication.
 
-Run order for the demo:
+## Configuration
 
-1. Confirm the backend responds at `http://localhost:5000/health`.
-2. Confirm the frontend responds at `http://localhost:5173/health`.
-3. Open the public HTTPS URL on the laptop and open `output.html`.
-4. Click `Start audio output`.
-5. Use the QR invite or open `participant.html` on the phone.
-6. Allow camera and microphone access, then move and clap.
-7. Confirm the operator panel shows `Live`, changing sensor values, and changing Music Parameters.
-8. If the phone path fails, use the labeled Synthetic Rehearsal control on the output tab.
-
-The tunnel URL is a runtime value. If it changes, update `FRONTEND_ORIGINS` and restart the backend before joining from the phone.
-
-### Local HTTPS fallback with mkcert
-
-`mkcert` can provide trusted certificates for a local development hostname when tunnel access is unavailable. The certificate must cover the hostname used by both the browser page and Vite; a certificate on only the ASP.NET backend is not enough for phone camera/microphone access.
-
-Example certificate setup:
+Copy the frontend template if you need to point it at a separately hosted API:
 
 ```powershell
-mkcert -install
-mkcert localhost 127.0.0.1 ::1
+Copy-Item frontend/.env.example frontend/.env
 ```
 
-Configure the generated certificate and key in Vite's HTTPS server settings, then open the HTTPS Vite URL from a device that trusts the local certificate. Keep the ngrok path as the primary demo route because it is easier to use on an unconfigured phone.
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `VITE_API_URL` | `frontend/.env` | API origin when the frontend cannot use Vite's local proxy. Leave unset for the default local proxy. |
+| `FRONTEND_ORIGINS` | Backend environment | Comma-separated browser origins allowed by CORS. Include the active HTTPS tunnel origin. |
+| `ROOM_HOST_TOKEN_SECRET` | Backend environment | Long random secret used to sign host tokens when host-token enforcement is enabled. |
+| `ROOM_REQUIRE_HOST_TOKEN` | Backend environment | Set to `true` only when host-token enforcement is required. It is `false` by default for anonymous rooms. |
+| `ASPNETCORE_ENVIRONMENT` | Backend environment | Set to `Development` locally; Production disables unauthenticated `demo` host access. |
 
-### Permission and connection troubleshooting
-
-- `Permission denied`: open the browser site permissions and allow both Camera and Microphone. If Microphone is missing, enable Chrome's Microphone permission in Android Settings, then reload the HTTPS page.
-- `ERR_NGROK_3004` or a `503` during SignalR negotiation: verify Vite is listening on port `5173`; ngrok must target the active Vite port, not a stale process.
-- Vite says the ngrok host is not allowed: keep the leading-dot entry `".ngrok-free.dev"` in `frontend/vite.config.ts`.
-- SignalR connects locally but not through ngrok: add the exact `https://...ngrok-free.dev` origin to `FRONTEND_ORIGINS` and restart the backend.
-- Operator panel says `No signal`: refresh the output page and rejoin the phone. Check that the phone status says it is contributing and that the backend `/health` endpoint is healthy.
-- No audio: click `Start audio output` in the output tab itself. Browser audio requires a user gesture; check the tab's mute state and output device before retrying.
-
-### Local laptop-only fallback
-
-Create and trust the local ASP.NET development certificate once:
+Example production secret setup:
 
 ```powershell
-dotnet dev-certs https --trust
+$env:ROOM_REQUIRE_HOST_TOKEN = "true"
+$env:ROOM_HOST_TOKEN_SECRET = "replace-with-a-long-random-secret"
 ```
 
-For laptop-only checks, open the local Vite URL and use one tab for `output.html` and another for `participant.html`. A phone still requires the HTTPS tunnel or a correctly configured HTTPS Vite fallback.
+Keep real secrets out of `.env` files that are committed to Git.
 
-## VS Code
+## API and SignalR contract
 
-Install frontend dependencies once with `npm install` from `frontend/`. The repository includes VS Code launch and task files for starting the full local stack. The backend status tests can be run with:
+| Surface | Purpose |
+| --- | --- |
+| `GET /health` | Health check |
+| `GET /api/status?room={roomId}` | Current server-side room status; returns `404` for an unknown room |
+| `POST /api/rooms` | Creates an isolated room and returns host access credentials |
+| `/hubs/dj` | SignalR hub |
+
+SignalR methods:
+
+| Method | Called by | Description |
+| --- | --- | --- |
+| `Join(role, roomId, hostToken?)` | Every client | Registers a role in a room; host roles are validated |
+| `SendVibe(vibe)` | Participant, booth, synthetic mode | Updates the room's live state |
+| `Leave()` | Every client | Removes the connection and its live input |
+
+Key server-to-client events are `Joined`, `RoomStateUpdated`, `MusicParamsUpdated`, `VibeVectorUpdated`, and `StatusUpdated`.
+
+## Testing
+
+Run the xUnit API/domain tests:
 
 ```powershell
 dotnet test backend/tests/AiDj.Api.Tests/AiDj.Api.Tests.csproj
 ```
 
-## Structure
+Run the frontend type check and production build:
 
-- `backend/` — ASP.NET Core host, SignalR hub, room aggregation, and music mapping.
-- `frontend/` — Vite + TypeScript participant and output browser clients.
-- `docs/` and root Markdown files — PRD, architecture, ADRs, and issue slices.
+```powershell
+cd frontend
+npm run build
+```
+
+The project also contains `backend.Tests`, a lightweight console test harness used during early prototyping. The xUnit project under `backend/tests/` is the primary test command for ongoing work.
+
+For a manual end-to-end check, use `docs/test-runbook.md`.
+
+## Project structure
+
+```text
+backend/
+  Application/                 Room aggregation, room lifecycle, access tokens, music parameters
+  Domain/Models/               VibeVector, RoomState, MusicParams, status contracts
+  Infrastructure/Realtime/     SignalR DjHub and room groups
+  tests/AiDj.Api.Tests/        xUnit tests
+
+frontend/
+  src/
+    participant.ts             Phone sensing and participant room flow
+    output.ts                  Output console and audio lifecycle
+    realMusic.ts               Web Audio decks, loading, mix changes, transitions
+    musicAnalysis.ts           Browser-side audio profiling
+    djDecision.ts              Explainable track-ranking policy
+    booth.ts / fallback.ts     Manual and synthetic fallback sources
+    status.ts                  Operator status monitor
+  public/stems/                Music manifest, audio assets, license records
+
+docs/
+  adr/                         Architectural decision records
+  intelligent-music-direction.md
+  production-roadmap.md
+  test-runbook.md
+```
+
+## Current scope and roadmap
+
+AI-DJ is a polished hackathon-scale prototype, not yet a production service. It currently provides in-memory isolated rooms, browser-local audio analysis, and signed host tokens. The next production stages are documented in `docs/production-roadmap.md`:
+
+1. **Durable realtime state** — Redis, scale-out, reconnect recovery, expiry, rate limiting, and audit events.
+2. **Music catalog ingestion** — object storage, one-time server-side analysis, license metadata, safe transition points, and CDN delivery.
+3. **Data-informed DJ ranking** — collect opt-in session outcomes, then train a constrained ranking model.
+4. **Product operations** — user authentication, room ownership, moderation, privacy retention, dashboards, alerts, feature flags, and staged rollouts.
+
+## Privacy and safety
+
+- Raw video and microphone streams stay on the participant device.
+- Only normalized numeric features are sent to the server.
+- The current prototype does not persist vibe vectors.
+- Tell participants that camera and microphone permissions are used for local sensing before they join.
+- Only bundle music that is licensed for redistribution and public performance in the intended setting.
+
+## Further documentation
+
+- `prd.md` — original product requirements
+- `detailed-architecture-ai-dj.md` — deeper architecture notes
+- `docs/adr/` — key architectural decisions
+- `docs/intelligent-music-direction.md` — music-selection rationale
+- `docs/audio-options.md` — audio direction research
+- `docs/test-runbook.md` — manual demo verification
+
+## License
+
+See `LICENSE` for the repository license. Music assets have separate provenance and licensing requirements documented in `frontend/public/stems/LICENSE.md`.

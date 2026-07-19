@@ -8,6 +8,7 @@ public sealed class RoomAggregator
     private readonly Dictionary<string, ClientVibe> clients = new();
     private readonly object sync = new();
     private double previousEnergy;
+    private double previousTrend;
     private long previousStateAt;
 
     public void Ingest(string clientId, VibeVector vibe, long nowMilliseconds)
@@ -47,6 +48,7 @@ public sealed class RoomAggregator
             {
                 var emptyState = CreateState(0, 1, 0, 0, 0, 0, nowMilliseconds);
                 previousEnergy = 0;
+                previousTrend = 0;
                 previousStateAt = nowMilliseconds;
                 return emptyState;
             }
@@ -124,10 +126,16 @@ public sealed class RoomAggregator
             return 0;
         }
 
+        if (nowMilliseconds <= previousStateAt || nowMilliseconds - previousStateAt < 250)
+        {
+            return previousTrend;
+        }
+
         var elapsedSeconds = Math.Max((nowMilliseconds - previousStateAt) / 1_000d, 0.25);
         var trend = Math.Clamp((energy - previousEnergy) / elapsedSeconds, -1, 1);
         previousEnergy = energy;
         previousStateAt = nowMilliseconds;
+        previousTrend = trend;
         return trend;
     }
 

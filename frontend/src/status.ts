@@ -1,5 +1,6 @@
-import { createConnection } from "./connection";
+import { createConnection, joinRoom } from "./connection";
 import type { DemoStatus } from "./protocol";
+import "./navigation";
 import "./styles.css";
 
 const status = document.querySelector<HTMLElement>("#status")!;
@@ -19,7 +20,7 @@ connect();
 async function connect(): Promise<void> {
   try {
     await connection.start();
-    await connection.invoke("Join", "status");
+    await joinRoom(connection, "status");
     status.textContent = "Connected — monitoring the room";
   } catch (error) {
     console.error(error);

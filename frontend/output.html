@@ -6,6 +6,9 @@
     <title>AI-DJ Host Console</title>
   </head>
   <body>
+    <nav class="app-nav" aria-label="AI-DJ navigation">
+      <a href="/">Home</a><a href="/output.html" aria-current="page">Output</a><a href="/participant.html">Join room</a><a href="/booth.html">Booth</a><a href="/status.html">Status</a>
+    </nav>
     <main class="panel output-panel host-room">
       <header class="room-header">
         <div>
@@ -35,6 +38,10 @@
         <div><span>Layers</span><strong id="layers">1 / 4</strong></div>
         <div><span>People in</span><strong id="participant-count">0</strong></div>
       </div>
+      <section class="dj-intent-card" aria-live="polite">
+        <span>DJ intent</span>
+        <strong id="dj-intent">Warmup · waiting for a room signal</strong>
+      </section>
       <button id="start-audio" class="button start-audio-button" type="button">Start audio output</button>
       <button id="connect-spotify" class="button secondary provider-button" type="button">Connect Spotify</button>
       <p id="spotify-status" class="rehearsal-status">Local AI-DJ audio is active by default.</p>
@@ -95,6 +102,8 @@
         <button id="play-youtube-music" class="button secondary" type="button">Play YouTube Music</button>
         <div id="youtube-player" class="youtube-player" aria-label="YouTube Music player"></div>
       </div>
+      <button id="hold-direction" class="button secondary" type="button">Hold current direction</button>
+      <button id="end-session" class="button secondary" type="button" disabled>End this session</button>
       <p id="dj-decision" class="muted small">AI is analysing the room and loaded music.</p>
       <p class="muted small">The reactive music engine changes arrangement with the room. Audio playback requires one click in this tab.</p>
       <a class="button secondary booth-launch-button" href="/booth.html" aria-label="Open Booth Device controller">Open Booth Device controller</a>

@@ -1,4 +1,4 @@
-import { createConnection } from "./connection";
+import { createConnection, currentRoomId, joinRoom, roomUrl } from "./connection";
 import { RealMusicDecks } from "./realMusic";
 import { SpotifyPlaybackAdapter, type SpotifyTrackSearchResult } from "./spotifyPlayback";
 import { AppleMusicPlaybackAdapter, type AppleMusicTrackSearchResult } from "./appleMusicPlayback";
@@ -6,6 +6,7 @@ import { YoutubeMusicPlaybackAdapter, type YoutubeMusicSearchResult } from "./yo
 import { MusicSelectionEngine, type EnergyBand, type TrackProfile } from "./musicSelection";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
+import "./navigation";
 import "./styles.css";
 
 const status = document.querySelector<HTMLElement>("#status")!;
@@ -49,9 +50,18 @@ const toggleAutoDj = document.querySelector<HTMLButtonElement>("#toggle-auto-dj"
 const autoDjStatus = document.querySelector<HTMLElement>("#auto-dj-status")!;
 const connection = createConnection();
 const djDecision = document.querySelector<HTMLElement>("#dj-decision")!;
+const djIntent = document.querySelector<HTMLElement>("#dj-intent")!;
+const holdDirection = document.querySelector<HTMLButtonElement>("#hold-direction")!;
+const endSession = document.querySelector<HTMLButtonElement>("#end-session")!;
+let directionHeld = false;
 const stemPack = new RealMusicDecks(
   () => undefined,
   message => djDecision.textContent = message,
+  message => {
+    djDecision.textContent = message;
+    startAudio.textContent = "Analyzing music…";
+  },
+  message => djIntent.textContent = message,
 );
 const spotify = new SpotifyPlaybackAdapter();
 const appleMusic = new AppleMusicPlaybackAdapter();
@@ -455,6 +465,11 @@ async function releaseSpotifyAudio(): Promise<void> {
     await stemPack.start();
   }
 }
+const participantUrl = roomUrl("/participant.html");
+let targetEnergy = 0;
+let displayedEnergy = 0;
+let isStartingAudio = false;
+let outputJoined = false;
 
 connection.on("MusicParamsUpdated", (params: MusicParams) => {
   tempo.textContent = `${Math.round(params.tempo)} BPM`;
@@ -467,6 +482,35 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
   targetEnergy = state.energy;
   stemPack.setRoomState(state);
   void maybeSelectAutomaticTrack();
+});
+
+connection.on("RoomClosed", () => {
+  stemPack.stop();
+  targetEnergy = 0;
+  participantCount.textContent = "0";
+  status.textContent = "Session ended. Returning home…";
+  startAudio.disabled = true;
+  holdDirection.disabled = true;
+  endSession.disabled = true;
+  window.setTimeout(() => window.location.assign("/"), 1_000);
+});
+
+connection.onreconnecting(() => {
+  outputJoined = false;
+  endSession.disabled = true;
+  status.textContent = "Output connection interrupted — reconnecting…";
+});
+
+connection.onreconnected(async () => {
+  try {
+    await joinRoom(connection, "output");
+    outputJoined = true;
+    endSession.disabled = false;
+    status.textContent = "Reconnected to the active room";
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Reconnected, but could not rejoin room ${currentRoomId()}.`;
+  }
 });
 
 function animateSpeaker(): void {
@@ -544,7 +588,7 @@ async function startAudioOutput(): Promise<void> {
     await Promise.race([
       stemPack.start(),
       new Promise<never>((_, reject) => {
-        timeoutId = window.setTimeout(() => reject(new Error("Audio startup timed out. Check the browser output device.")), 30_000);
+        timeoutId = window.setTimeout(() => reject(new Error("Music analysis timed out. Refresh this tab and try again.")), 180_000);
       }),
     ]);
     localAudioWasStarted = true;
@@ -566,12 +610,40 @@ async function startAudioOutput(): Promise<void> {
 startAudio.addEventListener("pointerup", () => void startAudioOutput());
 startAudio.addEventListener("click", () => void startAudioOutput());
 
+holdDirection.addEventListener("click", () => {
+  directionHeld = !directionHeld;
+  stemPack.setHoldSelection(directionHeld);
+  holdDirection.textContent = directionHeld ? "Resume AI direction" : "Hold current direction";
+});
+
+endSession.addEventListener("click", async () => {
+  if (!outputJoined) {
+    status.textContent = "Waiting for the output console to join the room…";
+    return;
+  }
+  if (!window.confirm("End this room for every participant?")) {
+    return;
+  }
+
+  endSession.disabled = true;
+  status.textContent = "Ending session…";
+  try {
+    await connection.invoke("EndRoom");
+  } catch (error) {
+    console.error(error);
+    status.textContent = "Could not end the session. Check the output connection.";
+    endSession.disabled = false;
+  }
+});
+
 connect();
 
 async function connect(): Promise<void> {
   try {
     await connection.start();
-    await connection.invoke("Join", "output");
+    await joinRoom(connection, "output");
+    outputJoined = true;
+    endSession.disabled = false;
     status.textContent = "Connected - waiting for the room";
   } catch (error) {
     console.error(error);

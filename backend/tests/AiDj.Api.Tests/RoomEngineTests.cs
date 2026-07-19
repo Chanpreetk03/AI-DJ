@@ -108,5 +108,45 @@ public sealed class RoomEngineTests
         Assert.Equal(0, engine.GetSnapshot().State.ActiveClients);
     }
 
+    [Fact]
+    public void Repeated_snapshots_do_not_erase_energy_trend()
+    {
+        var aggregator = new RoomAggregator();
+        aggregator.Ingest("phone-1", Vibe(0.2), 1_000);
+        aggregator.GetState(1_000);
+        aggregator.Ingest("phone-1", Vibe(0.8), 2_000);
+
+        var first = aggregator.GetState(2_000);
+        var repeated = aggregator.GetState(2_001);
+
+        Assert.True(first.EnergyTrend > 0);
+        Assert.Equal(first.EnergyTrend, repeated.EnergyTrend);
+    }
+
+    [Fact]
+    public void Removed_connection_can_no_longer_send_vibes()
+    {
+        var engine = new RoomEngine(new RoomAggregator(), new VibeToMusicMapper());
+        engine.RegisterConnection("booth-1", "booth");
+        engine.RemoveConnection("booth-1");
+
+        Assert.False(engine.CanSendVibe("booth-1"));
+    }
+
+    [Fact]
+    public void Calibrated_booth_vibe_preserves_the_requested_energy()
+    {
+        var aggregator = new RoomAggregator();
+        const double requestedEnergy = 0.08;
+        aggregator.Ingest(
+            "booth-1",
+            new VibeVector(requestedEnergy * requestedEnergy, requestedEnergy * requestedEnergy, requestedEnergy * requestedEnergy, requestedEnergy * 4, 1_000),
+            1_000);
+
+        var state = aggregator.GetState(1_000);
+
+        Assert.InRange(state.Energy, 0.07, 0.09);
+    }
+
     private static VibeVector Vibe(double energy) => new(energy, energy, energy, energy * 4, 1_000);
 }

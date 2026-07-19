@@ -1,4 +1,8 @@
 import type { MusicParams, RoomState } from "./protocol";
+import { decideTrack } from "./djDecision";
+import { CrowdIntentTracker, describeIntent, type CrowdIntent } from "./djIntent";
+import { readFeedback, recordFeedback } from "./djFeedback";
+import { analyzeTrack, normalizeProfiles, type MeasuredTrackProfile, type MusicSection } from "./musicAnalysis";
 
 export type MusicSelection = "auto" | string;
 
@@ -11,30 +15,22 @@ type TrackMetadata = {
   title: string;
   kind: TrackKind;
   url?: string;
-  bpm: number;
-  key: string;
+  analysisUrl?: string;
   phraseBars: number;
-  energy: number;
-  dynamics: number;
-  brightness: number;
+  key?: string;
   tags: string[];
   license: string;
   stems?: Record<StemId, string[]>;
 };
 
-type TrackProfile = {
-  bpm: number;
-  phraseSeconds: number;
-  dynamics: number;
-  intensity: number;
-};
-
-type Track = TrackMetadata & { profile?: TrackProfile };
+type Track = TrackMetadata & { profile?: MeasuredTrackProfile };
 
 type MusicLibrary = {
   version: number;
   tracks: TrackMetadata[];
 };
+
+const analysisCacheKey = "ai-dj-music-analysis-v2";
 
 type Deck = {
   gain: GainNode;
@@ -43,12 +39,14 @@ type Deck = {
   track: Track;
   startedAt: number;
   stemGains?: Map<StemId, GainNode>;
+  section?: MusicSection;
 };
 
 type StemId = "drums" | "bass" | "harmony" | "flute" | "melody";
 
 type Decision = {
   track: Track;
+  section?: MusicSection;
   reason: string;
 };
 
@@ -72,16 +70,40 @@ export class RealMusicDecks {
   private roomCoherence = 1;
   private roomVolatility = 0;
   private roomConfidence = 0;
+  private roomState: RoomState = {
+    energy: 0,
+    coherence: 1,
+    activeClients: 0,
+    motionEnergy: 0,
+    audioEnergy: 0,
+    onsetDensity: 0,
+    energyTrend: 0,
+    volatility: 0,
+    confidence: 0,
+  };
   private energyTrend = 0;
   private lastSwitchAt = 0;
   private pendingTrack: TrackId | undefined;
+  private holdSelection = false;
   private readonly playHistory: TrackId[] = [];
+  private readonly intentTracker = new CrowdIntentTracker();
+  private intent: CrowdIntent = { label: "warmup", intensity: 0, rhythmicDemand: 0, stability: 1, confidence: 0, trend: 0 };
+  private feedback = readFeedback();
   private readonly onTrackChanged: (title: string) => void;
   private readonly onDecision: (message: string) => void;
+  private readonly onAnalysisProgress: (message: string) => void;
+  private readonly onIntentChanged: (message: string) => void;
 
-  public constructor(onTrackChanged: (title: string) => void, onDecision: (message: string) => void) {
+  public constructor(
+    onTrackChanged: (title: string) => void,
+    onDecision: (message: string) => void,
+    onAnalysisProgress: (message: string) => void = () => undefined,
+    onIntentChanged: (message: string) => void = () => undefined,
+  ) {
     this.onTrackChanged = onTrackChanged;
     this.onDecision = onDecision;
+    this.onAnalysisProgress = onAnalysisProgress;
+    this.onIntentChanged = onIntentChanged;
   }
 
   public async start(): Promise<void> {
@@ -99,7 +121,13 @@ export class RealMusicDecks {
       this.isStarted = true;
       const decision = this.chooseTrack();
       await this.ensureTrackLoaded(decision.track);
-      this.activeDeck = this.createDeck(decision.track, this.context.currentTime + 0.05, this.targetGain());
+      this.activeDeck = this.createDeck(
+        decision.track,
+        this.context.currentTime + 0.05,
+        this.targetGain(decision.track),
+        decision.track.profile?.bpm ?? this.parameters.tempo,
+        decision.section,
+      );
       this.lastSwitchAt = this.activeDeck.startedAt;
       this.remember(decision.track.id);
       this.onTrackChanged(decision.track.title);
@@ -119,6 +147,7 @@ export class RealMusicDecks {
   }
 
   public setRoomState(state: RoomState): void {
+    this.roomState = state;
     const nextEnergy = Math.max(0, Math.min(1, state.energy));
     const delta = nextEnergy - this.roomEnergy;
     const reportedTrend = Math.max(-1, Math.min(1, state.energyTrend));
@@ -129,12 +158,36 @@ export class RealMusicDecks {
     this.roomCoherence = Math.max(0, Math.min(1, state.coherence));
     this.roomVolatility = Math.max(0, Math.min(1, state.volatility));
     this.roomConfidence = Math.max(0, Math.min(1, state.confidence));
+    this.intent = this.intentTracker.update(state);
+    this.onIntentChanged(describeIntent(this.intent));
+    this.applyMix();
     void this.considerTrackChange();
   }
 
   public setSelection(selection: MusicSelection): void {
     this.selectedTrack = selection === "auto" || this.tracks[selection] !== undefined ? selection : "auto";
     void this.considerTrackChange(true);
+  }
+
+  public setHoldSelection(hold: boolean): void {
+    this.holdSelection = hold;
+    this.onDecision(hold ? "Host is holding the current musical direction." : "AI is free to select the next safe musical direction.");
+    if (!hold) void this.considerTrackChange(true);
+  }
+
+  public stop(): void {
+    if (!this.isInitialized) {
+      return;
+    }
+
+    const now = this.context.currentTime;
+    this.activeDeck?.gain.gain.cancelScheduledValues(now);
+    this.activeDeck?.gain.gain.linearRampToValueAtTime(0.001, now + 0.2);
+    this.activeDeck?.sources.forEach(source => source.stop(now + 0.25));
+    this.activeDeck = undefined;
+    this.scheduledTrack = undefined;
+    this.pendingTrack = undefined;
+    this.isStarted = false;
   }
 
   private initializeAudioGraph(): void {
@@ -146,11 +199,13 @@ export class RealMusicDecks {
 
     this.context = new AudioContextConstructor();
     this.masterGain = this.context.createGain();
-    this.masterGain.gain.value = 0.45;
+    this.masterGain.gain.value = 0.34;
     this.compressor = this.context.createDynamicsCompressor();
-    this.compressor.threshold.value = -16;
-    this.compressor.knee.value = 12;
-    this.compressor.ratio.value = 3;
+    this.compressor.threshold.value = -20;
+    this.compressor.knee.value = 18;
+    this.compressor.ratio.value = 5;
+    this.compressor.attack.value = 0.008;
+    this.compressor.release.value = 0.2;
     this.masterGain.connect(this.compressor).connect(this.context.destination);
     this.isInitialized = true;
   }
@@ -158,11 +213,41 @@ export class RealMusicDecks {
   private async loadTracks(): Promise<void> {
     const library = await this.loadLibrary();
     this.tracks = Object.fromEntries(library.tracks.map(track => [track.id, { ...track }])) as Record<TrackId, Track>;
-
-    for (const track of Object.values(this.tracks)) {
-      track.profile = this.profileFromMetadata(track);
+    const tracks = Object.values(this.tracks);
+    const profiles: MeasuredTrackProfile[] = [];
+    const cachedProfiles = this.readCachedProfiles();
+    for (const [index, track] of tracks.entries()) {
+      const analysisUrl = track.analysisUrl ?? track.url;
+      if (analysisUrl === undefined) {
+        throw new Error(`${track.title} needs an analysisUrl or full-track URL`);
+      }
+      this.onAnalysisProgress(`Analyzing ${track.title} (${index + 1}/${tracks.length})…`);
+      const cached = cachedProfiles[analysisUrl];
+      const profile = cached?.sections !== undefined ? cached : await analyzeTrack(this.context, analysisUrl, track.phraseBars);
+      track.profile = profile;
+      profiles.push(profile);
+      cachedProfiles[analysisUrl] = profile;
     }
-    this.normalizeProfiles();
+    const normalizedProfiles = normalizeProfiles(profiles);
+    tracks.forEach((track, index) => track.profile = normalizedProfiles[index]);
+    this.writeCachedProfiles(cachedProfiles);
+    this.onAnalysisProgress("Music analysis complete — selecting the best fit.");
+  }
+
+  private readCachedProfiles(): Record<string, MeasuredTrackProfile> {
+    try {
+      return JSON.parse(window.localStorage.getItem(analysisCacheKey) ?? "{}") as Record<string, MeasuredTrackProfile>;
+    } catch {
+      return {};
+    }
+  }
+
+  private writeCachedProfiles(profiles: Record<string, MeasuredTrackProfile>): void {
+    try {
+      window.localStorage.setItem(analysisCacheKey, JSON.stringify(profiles));
+    } catch {
+      // Analysis caching is optional; playback continues without it.
+    }
   }
 
   private async loadLibrary(): Promise<MusicLibrary> {
@@ -171,26 +256,6 @@ export class RealMusicDecks {
       throw new Error(`Could not load music library (${response.status})`);
     }
     return await response.json() as MusicLibrary;
-  }
-
-  private profileFromMetadata(metadata: TrackMetadata): TrackProfile {
-    return {
-      bpm: metadata.bpm,
-      phraseSeconds: Math.max(8, Math.min(32, metadata.phraseBars * 4 * 60 / metadata.bpm)),
-      dynamics: metadata.dynamics,
-      intensity: metadata.energy,
-    };
-  }
-
-  private normalizeProfiles(): void {
-    const profiles = Object.values(this.tracks).map(track => track.profile!);
-    const normalize = (value: number, values: number[]): number => {
-      const lowest = Math.min(...values);
-      const highest = Math.max(...values);
-      return highest - lowest < 0.0001 ? 0.5 : (value - lowest) / (highest - lowest);
-    };
-    const energyValues = profiles.map(profile => profile.intensity);
-    profiles.forEach(profile => profile.intensity = normalize(profile.intensity, energyValues));
   }
 
   private async ensureTrackLoaded(track: Track): Promise<void> {
@@ -226,24 +291,19 @@ export class RealMusicDecks {
   }
 
   private async considerTrackChange(force = false): Promise<void> {
-    if (!this.isStarted || this.activeDeck === undefined || this.scheduledTrack !== undefined || this.pendingTrack !== undefined) {
+    if (!this.isStarted || this.activeDeck === undefined || this.holdSelection || this.scheduledTrack !== undefined || this.pendingTrack !== undefined) {
       return;
     }
 
     const decision = this.chooseTrack();
     this.onDecision(decision.reason);
-    if (decision.track.id === this.activeDeck.track.id) {
+    const currentSectionId = this.activeDeck.section?.id;
+    if (decision.track.id === this.activeDeck.track.id && decision.section?.id === currentSectionId) {
       return;
     }
 
     const now = this.context.currentTime;
     if (!force && now - this.lastSwitchAt < 20) {
-      return;
-    }
-
-    const currentScore = this.score(this.activeDeck.track);
-    const targetScore = this.score(decision.track);
-    if (!force && targetScore - currentScore < 0.12) {
       return;
     }
 
@@ -258,7 +318,7 @@ export class RealMusicDecks {
       const elapsed = currentTime - this.activeDeck.startedAt;
       const phrasesElapsed = Math.ceil(elapsed / this.activeDeck.track.profile!.phraseSeconds);
       const switchAt = this.activeDeck.startedAt + phrasesElapsed * this.activeDeck.track.profile!.phraseSeconds;
-      this.crossfadeTo(decision.track, Math.max(switchAt, currentTime + 0.1));
+      this.crossfadeTo(decision, Math.max(switchAt, currentTime + 0.1));
     } finally {
       if (this.scheduledTrack === undefined) {
         this.pendingTrack = undefined;
@@ -275,37 +335,19 @@ export class RealMusicDecks {
       return { track, reason: `Host selected ${track.title}.` };
     }
 
-    const ranked = Object.values(this.tracks)
-      .map(track => ({ track, score: this.score(track) }))
-      .sort((left, right) => right.score - left.score);
-    const winner = ranked[0].track;
-    const profile = winner.profile!;
-    const trend = this.energyTrend > 0.025 ? "rising" : this.energyTrend < -0.025 ? "falling" : "steady";
-    const rhythm = this.roomOnsetDensity > 0.65 ? "rhythm-forward" : this.roomAudioEnergy > 0.55 ? "melodic" : "open-space";
+    const decision = decideTrack(this.intent,
+      Object.values(this.tracks)
+        .map(track => ({ id: track.id, title: track.title, key: track.key, profile: track.profile! })),
+      this.playHistory, this.activeDeck?.track.id, this.activeDeck?.track.key, this.activeDeck?.track.profile?.bpm, this.feedback);
+    const winner = this.tracks[decision.trackId];
     return {
       track: winner,
-      reason: `AI selected ${winner.title}: ${trend} ${rhythm} room, ${Math.round(this.roomCoherence * 100)}% coherence, ${Math.round(this.roomConfidence * 100)}% sensing confidence.`,
+      section: winner.profile?.sections.find(section => section.id === decision.sectionId),
+      reason: decision.reason,
     };
   }
 
-  private score(track: Track): number {
-    const profile = track.profile!;
-    const targetIntensity = Math.max(0, Math.min(1,
-      this.roomEnergy * 0.48 +
-      this.roomAudioEnergy * 0.18 +
-      this.roomOnsetDensity * 0.16 +
-      Math.max(this.energyTrend, 0) * 0.12 +
-      this.roomCoherence * 0.06));
-    const energyFit = 1 - Math.abs(profile.intensity - targetIntensity);
-    const stabilityFit = this.roomCoherence < 0.45 || this.roomVolatility > 0.55 ? 1 - profile.dynamics : profile.dynamics;
-    const rhythmFit = this.roomOnsetDensity > 0.6 && track.tags.includes("rhythmic") ? 1 :
-      this.roomAudioEnergy > 0.55 && track.tags.includes("melodic") ? 1 : 0.5;
-    const novelty = this.playHistory.includes(track.id) ? 0 : 1;
-    const confidenceFit = this.roomConfidence * 0.05;
-    return energyFit * 0.52 + stabilityFit * 0.18 + rhythmFit * 0.15 + novelty * 0.1 + confidenceFit;
-  }
-
-  private createDeck(track: Track, startAt: number, initialGain: number): Deck {
+  private createDeck(track: Track, startAt: number, initialGain: number, targetBpm = this.parameters.tempo, section?: MusicSection): Deck {
     const gain = this.context.createGain();
     gain.gain.setValueAtTime(initialGain, startAt);
     const filter = this.context.createBiquadFilter();
@@ -313,23 +355,28 @@ export class RealMusicDecks {
     filter.Q.value = 0.5;
     gain.connect(this.masterGain);
     const deck = track.kind === "stem-pack"
-      ? this.createStemDeck(track, startAt, gain, filter)
-      : this.createFullTrackDeck(track, startAt, gain, filter);
+      ? this.createStemDeck(track, startAt, gain, filter, targetBpm, section)
+      : this.createFullTrackDeck(track, startAt, gain, filter, targetBpm, section);
     this.applyFilter(deck);
     this.applyStemMix(deck);
     return deck;
   }
 
-  private createFullTrackDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode): Deck {
+  private createFullTrackDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode, targetBpm: number, section?: MusicSection): Deck {
     const source = this.context.createBufferSource();
     source.buffer = this.buffers.get(track.id)!;
     source.loop = true;
+    if (section !== undefined) {
+      source.loopStart = section.startSeconds;
+      source.loopEnd = section.endSeconds;
+    }
+    source.playbackRate.value = this.tempoRatio(track, targetBpm);
     source.connect(filter).connect(gain);
-    source.start(startAt);
-    return { gain, filter, sources: [source], track, startedAt: startAt };
+    source.start(startAt, section?.startSeconds ?? 0);
+    return { gain, filter, sources: [source], track, startedAt: startAt, section };
   }
 
-  private createStemDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode): Deck {
+  private createStemDeck(track: Track, startAt: number, gain: GainNode, filter: BiquadFilterNode, targetBpm: number, section?: MusicSection): Deck {
     const stemGains = new Map<StemId, GainNode>();
     const stemDefinitions = Object.entries(track.stems ?? {}) as [StemId, string[]][];
     const sources = stemDefinitions.map(([stemId, urls]) => {
@@ -338,6 +385,7 @@ export class RealMusicDecks {
       const url = this.chooseStemVariant(stemId, urls);
       source.buffer = this.stemBuffers.get(this.stemKey(track.id, stemId, url))!;
       source.loop = true;
+      source.playbackRate.value = this.tempoRatio(track, targetBpm);
       stemGain.connect(filter);
       source.connect(stemGain);
       source.start(startAt);
@@ -345,7 +393,7 @@ export class RealMusicDecks {
       return source;
     });
     filter.connect(gain);
-    return { gain, filter, sources, track, startedAt: startAt, stemGains };
+    return { gain, filter, sources, track, startedAt: startAt, stemGains, section };
   }
 
   private chooseStemVariant(stemId: StemId, urls: string[]): string {
@@ -360,25 +408,31 @@ export class RealMusicDecks {
     return `${trackId}:${stemId}:${url}`;
   }
 
-  private crossfadeTo(track: Track, switchAt: number): void {
+  private tempoRatio(track: Track, targetBpm: number): number {
+    return Math.max(0.92, Math.min(1.08, targetBpm / Math.max(track.profile?.bpm ?? targetBpm, 1)));
+  }
+
+  private crossfadeTo(decision: Decision, switchAt: number): void {
     const outgoingDeck = this.activeDeck!;
-    const incomingDeck = this.createDeck(track, switchAt, 0);
+    const feedbackBaseline = this.roomState;
+    const incomingDeck = this.createDeck(decision.track, switchAt, 0, outgoingDeck.track.profile?.bpm ?? this.parameters.tempo, decision.section);
     const fadeEndsAt = switchAt + 3;
-    this.scheduledTrack = track.id;
+    this.scheduledTrack = decision.track.id;
     outgoingDeck.gain.gain.cancelScheduledValues(switchAt);
     outgoingDeck.gain.gain.setValueAtTime(outgoingDeck.gain.gain.value, switchAt);
     outgoingDeck.gain.gain.linearRampToValueAtTime(0.001, fadeEndsAt);
     incomingDeck.gain.gain.setValueAtTime(0.001, switchAt);
-    incomingDeck.gain.gain.linearRampToValueAtTime(this.targetGain(), fadeEndsAt);
+    incomingDeck.gain.gain.linearRampToValueAtTime(this.targetGain(decision.track), fadeEndsAt);
     outgoingDeck.sources.forEach(source => source.stop(fadeEndsAt + 0.05));
     window.setTimeout(() => {
       this.activeDeck = incomingDeck;
       this.scheduledTrack = undefined;
       this.pendingTrack = undefined;
       this.lastSwitchAt = switchAt;
-      this.remember(track.id);
-      this.onTrackChanged(track.title);
-      this.onDecision(`AI transitioned to ${track.title} after a ${Math.round(outgoingDeck.track.profile!.phraseSeconds)} second phrase.`);
+      this.remember(decision.track.id);
+      this.onTrackChanged(decision.track.title);
+      window.setTimeout(() => this.feedback = recordFeedback(decision.track.id, feedbackBaseline, this.roomState), 8_000);
+      this.onDecision(`AI transitioned to ${decision.track.title} at a safe phrase boundary for ${this.intent.label} intent.`);
     }, Math.max(0, (switchAt - this.context.currentTime) * 1_000));
   }
 
@@ -398,7 +452,7 @@ export class RealMusicDecks {
     this.applyFilter(this.activeDeck);
     this.applyStemMix(this.activeDeck);
     this.activeDeck.gain.gain.cancelScheduledValues(now);
-    this.activeDeck.gain.gain.linearRampToValueAtTime(this.targetGain(), now + 0.4);
+    this.activeDeck.gain.gain.linearRampToValueAtTime(this.targetGain(this.activeDeck.track), now + 0.4);
   }
 
   private applyFilter(deck: Deck): void {
@@ -414,12 +468,14 @@ export class RealMusicDecks {
     }
 
     const now = this.context.currentTime;
+    const recovery = this.intent.label === "recovery";
+    const lift = this.intent.label === "lift" || this.intent.label === "peak";
     const targets: Record<StemId, number> = {
-      drums: 0.92,
-      bass: this.parameters.layerCount >= 2 ? 0.76 : 0,
-      harmony: this.parameters.layerCount >= 3 ? 0.14 + this.parameters.noteDensity * 0.14 : 0,
-      flute: this.parameters.layerCount >= 3 ? 0.18 + this.parameters.noteDensity * 0.18 : 0,
-      melody: this.parameters.layerCount >= 4 ? 0.22 + this.parameters.noteDensity * 0.22 : 0,
+      drums: recovery ? 0.42 : lift ? 0.7 : 0.58,
+      bass: this.parameters.layerCount >= 2 ? (recovery ? 0.28 : 0.46) : 0,
+      harmony: this.parameters.layerCount >= 3 ? 0.09 + this.parameters.noteDensity * 0.1 : 0,
+      flute: this.parameters.layerCount >= 3 && !recovery ? 0.1 + this.parameters.noteDensity * 0.13 : 0,
+      melody: this.parameters.layerCount >= 4 && this.intent.stability > 0.38 ? 0.13 + this.parameters.noteDensity * 0.16 : 0,
     };
     for (const [stemId, stemGain] of deck.stemGains) {
       stemGain.gain.cancelScheduledValues(now);
@@ -427,7 +483,8 @@ export class RealMusicDecks {
     }
   }
 
-  private targetGain(): number {
-    return 0.58 + this.parameters.noteDensity * 0.22;
+  private targetGain(track: Track): number {
+    const loudnessCompensation = (0.5 - (track.profile?.loudness ?? 0.5)) * 0.18;
+    return Math.max(0.34, Math.min(0.58, 0.42 + this.parameters.noteDensity * 0.1 + loudnessCompensation));
   }
 }
