@@ -93,7 +93,7 @@ export class PhoneMotionSensor {
 }
 
 export function combineMotionSignals(cameraMotion: number, phoneMotion: number): number {
-  return Math.min(cameraMotion * 0.6 + phoneMotion * 0.4, 1);
+  return Math.min(Math.sqrt(cameraMotion * 0.6 + phoneMotion * 0.4), 1);
 }
 
 export class FrameDifferenceSensor {

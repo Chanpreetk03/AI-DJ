@@ -62,6 +62,23 @@ public sealed class RoomEngineTests
         Assert.True(state.EnergyTrend > 0);
     }
 
+    [Fact]
+    public void Aggregator_smooths_rapid_sensor_energy_swings()
+    {
+        var aggregator = new RoomAggregator();
+        aggregator.Ingest("phone-1", Vibe(0.1), 1_000);
+        aggregator.GetState(1_000);
+
+        aggregator.Ingest("phone-1", Vibe(1), 1_200);
+        var rising = aggregator.GetState(1_200);
+
+        aggregator.Ingest("phone-1", Vibe(0.1), 1_400);
+        var falling = aggregator.GetState(1_400);
+
+        Assert.True(rising.Energy < 0.6);
+        Assert.True(falling.Energy > 0.35);
+    }
+
     [Theory]
     [InlineData(0.0, 1, 92)]
     [InlineData(0.3, 2, 106.4)]

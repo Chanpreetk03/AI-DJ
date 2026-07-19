@@ -51,7 +51,7 @@ export function inferCrowdIntent(state: RoomState): CrowdIntent {
   const label = trend < -0.12 && intensity < 0.7 ? "recovery"
     : intensity >= 0.76 && stability >= 0.4 ? "peak"
     : trend > 0.1 && intensity >= 0.35 ? "lift"
-    : intensity >= 0.25 ? "groove"
+    : intensity >= 0.18 ? "groove"
     : "warmup";
   return { label, intensity, rhythmicDemand, stability, confidence, trend };
 }

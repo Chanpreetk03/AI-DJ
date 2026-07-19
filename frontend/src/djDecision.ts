@@ -23,8 +23,12 @@ export function decideTrack(
   currentKey?: string,
   currentBpm?: number,
   feedback: Record<string, number> = {},
+  preferDifferentTrack = false,
 ): DjDecision {
-  const ranked = candidates.flatMap(candidate => compatibleSections(candidate, intent, currentKey, currentBpm).map(section => ({
+  const freshCandidates = preferDifferentTrack && currentTrackId !== undefined
+    ? candidates.filter(candidate => candidate.id !== currentTrackId)
+    : candidates;
+  const ranked = (freshCandidates.length > 0 ? freshCandidates : candidates).flatMap(candidate => compatibleSections(candidate, intent, currentKey, currentBpm).map(section => ({
     candidate,
     section,
     score: score(candidate, section, intent, history, currentTrackId, feedback[candidate.id] ?? 0),

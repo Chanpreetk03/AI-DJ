@@ -88,6 +88,7 @@ export class RealMusicDecks {
   private readonly playHistory: TrackId[] = [];
   private readonly intentTracker = new CrowdIntentTracker();
   private intent: CrowdIntent = { label: "warmup", intensity: 0, rhythmicDemand: 0, stability: 1, confidence: 0, trend: 0 };
+  private lastSelectionIntent: CrowdIntent | undefined;
   private feedback = readFeedback();
   private readonly onTrackChanged: (title: string) => void;
   private readonly onDecision: (message: string) => void;
@@ -129,6 +130,7 @@ export class RealMusicDecks {
         decision.section,
       );
       this.lastSwitchAt = this.activeDeck.startedAt;
+      this.lastSelectionIntent = this.intent;
       this.remember(decision.track.id);
       this.onTrackChanged(decision.track.title);
       this.onDecision(decision.reason);
@@ -295,7 +297,11 @@ export class RealMusicDecks {
       return;
     }
 
-    const decision = this.chooseTrack();
+    const preferDifferentTrack = this.hasMaterialIntentShift();
+    if (!force && !preferDifferentTrack) {
+      return;
+    }
+    const decision = this.chooseTrack(preferDifferentTrack);
     this.onDecision(decision.reason);
     const currentSectionId = this.activeDeck.section?.id;
     if (decision.track.id === this.activeDeck.track.id && decision.section?.id === currentSectionId) {
@@ -326,7 +332,7 @@ export class RealMusicDecks {
     }
   }
 
-  private chooseTrack(): Decision {
+  private chooseTrack(preferDifferentTrack = false): Decision {
     if (this.selectedTrack !== "auto") {
       const track = this.tracks[this.selectedTrack];
       if (track === undefined) {
@@ -338,7 +344,7 @@ export class RealMusicDecks {
     const decision = decideTrack(this.intent,
       Object.values(this.tracks)
         .map(track => ({ id: track.id, title: track.title, key: track.key, profile: track.profile! })),
-      this.playHistory, this.activeDeck?.track.id, this.activeDeck?.track.key, this.activeDeck?.track.profile?.bpm, this.feedback);
+      this.playHistory, this.activeDeck?.track.id, this.activeDeck?.track.key, this.activeDeck?.track.profile?.bpm, this.feedback, preferDifferentTrack);
     const winner = this.tracks[decision.trackId];
     return {
       track: winner,
@@ -418,6 +424,7 @@ export class RealMusicDecks {
     const incomingDeck = this.createDeck(decision.track, switchAt, 0, outgoingDeck.track.profile?.bpm ?? this.parameters.tempo, decision.section);
     const fadeEndsAt = switchAt + 3;
     this.scheduledTrack = decision.track.id;
+    this.lastSelectionIntent = this.intent;
     outgoingDeck.gain.gain.cancelScheduledValues(switchAt);
     outgoingDeck.gain.gain.setValueAtTime(outgoingDeck.gain.gain.value, switchAt);
     outgoingDeck.gain.gain.linearRampToValueAtTime(0.001, fadeEndsAt);
@@ -441,6 +448,17 @@ export class RealMusicDecks {
     if (this.playHistory.length > 2) {
       this.playHistory.shift();
     }
+  }
+
+  private hasMaterialIntentShift(): boolean {
+    const previous = this.lastSelectionIntent;
+    if (previous === undefined) {
+      return true;
+    }
+    return Math.abs(this.intent.intensity - previous.intensity) >= 0.12 ||
+      Math.abs(this.intent.rhythmicDemand - previous.rhythmicDemand) >= 0.14 ||
+      Math.abs(this.intent.stability - previous.stability) >= 0.2 ||
+      Math.abs(this.intent.trend - previous.trend) >= 0.18;
   }
 
   private applyMix(): void {
