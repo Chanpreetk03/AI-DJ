@@ -1,4 +1,4 @@
-import { createConnection, joinRoom, roomUrl } from "./connection";
+import { createConnection, currentRoomId, joinRoom, roomUrl } from "./connection";
 import { RealMusicDecks } from "./realMusic";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
@@ -23,6 +23,7 @@ const connection = createConnection();
 const djDecision = document.querySelector<HTMLElement>("#dj-decision")!;
 const djIntent = document.querySelector<HTMLElement>("#dj-intent")!;
 const holdDirection = document.querySelector<HTMLButtonElement>("#hold-direction")!;
+const endSession = document.querySelector<HTMLButtonElement>("#end-session")!;
 let directionHeld = false;
 const stemPack = new RealMusicDecks(
   () => undefined,
@@ -37,6 +38,7 @@ const participantUrl = roomUrl("/participant.html");
 let targetEnergy = 0;
 let displayedEnergy = 0;
 let isStartingAudio = false;
+let outputJoined = false;
 
 connection.on("MusicParamsUpdated", (params: MusicParams) => {
   tempo.textContent = `${Math.round(params.tempo)} BPM`;
@@ -48,6 +50,35 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
   participantCount.textContent = `${state.activeClients}`;
   targetEnergy = state.energy;
   stemPack.setRoomState(state);
+});
+
+connection.on("RoomClosed", () => {
+  stemPack.stop();
+  targetEnergy = 0;
+  participantCount.textContent = "0";
+  status.textContent = "Session ended. Returning home…";
+  startAudio.disabled = true;
+  holdDirection.disabled = true;
+  endSession.disabled = true;
+  window.setTimeout(() => window.location.assign("/"), 1_000);
+});
+
+connection.onreconnecting(() => {
+  outputJoined = false;
+  endSession.disabled = true;
+  status.textContent = "Output connection interrupted — reconnecting…";
+});
+
+connection.onreconnected(async () => {
+  try {
+    await joinRoom(connection, "output");
+    outputJoined = true;
+    endSession.disabled = false;
+    status.textContent = "Reconnected to the active room";
+  } catch (error) {
+    console.error(error);
+    status.textContent = `Reconnected, but could not rejoin room ${currentRoomId()}.`;
+  }
 });
 
 function animateSpeaker(): void {
@@ -140,12 +171,34 @@ holdDirection.addEventListener("click", () => {
   holdDirection.textContent = directionHeld ? "Resume AI direction" : "Hold current direction";
 });
 
+endSession.addEventListener("click", async () => {
+  if (!outputJoined) {
+    status.textContent = "Waiting for the output console to join the room…";
+    return;
+  }
+  if (!window.confirm("End this room for every participant?")) {
+    return;
+  }
+
+  endSession.disabled = true;
+  status.textContent = "Ending session…";
+  try {
+    await connection.invoke("EndRoom");
+  } catch (error) {
+    console.error(error);
+    status.textContent = "Could not end the session. Check the output connection.";
+    endSession.disabled = false;
+  }
+});
+
 connect();
 
 async function connect(): Promise<void> {
   try {
     await connection.start();
     await joinRoom(connection, "output");
+    outputJoined = true;
+    endSession.disabled = false;
     status.textContent = "Connected - waiting for the room";
   } catch (error) {
     console.error(error);

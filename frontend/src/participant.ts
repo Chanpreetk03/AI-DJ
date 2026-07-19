@@ -33,10 +33,12 @@ let participantAudioContext: AudioContext | undefined;
 let phoneMotionSensor: PhoneMotionSensor | undefined;
 let wakeLock: WakeLockSentinelLike | undefined;
 let isPageVisible = document.visibilityState === "visible";
+let roomClosed = false;
 
 applyParticipantPalette();
 
 joinButton.addEventListener("click", async () => {
+  roomClosed = false;
   const participantName = nameInput.value.trim();
   if (participantName.length < 2) {
     status.textContent = "Add your name so the room knows you are here.";
@@ -75,9 +77,22 @@ joinButton.addEventListener("click", async () => {
       }
     });
     connection.onclose(() => {
+      if (roomClosed) {
+        return;
+      }
       status.textContent = "Disconnected. Check your network and try again.";
       contribution.textContent = "Contribution paused";
       setJoinedUi(false);
+    });
+    connection.on("RoomClosed", () => {
+      roomClosed = true;
+      cleanupSession();
+      status.textContent = "This session has ended. Ask the host for a new invite.";
+      contribution.textContent = "Camera and microphone are stopped";
+      setJoinedUi(false);
+      joinButton.disabled = true;
+      nameInput.disabled = true;
+      status.focus();
     });
 
     await connection.start();
@@ -141,6 +156,9 @@ function describeJoinError(error: unknown): string {
     return "No camera or microphone was found on this phone.";
   }
   if (error instanceof Error) {
+    if (error.message.includes("room has ended") || error.message.includes("no longer exists")) {
+      return "This session has ended. Ask the host for a new invite.";
+    }
     return `Could not join: ${error.message}`;
   }
   return "Could not join. Check camera, microphone, and HTTPS permissions.";
