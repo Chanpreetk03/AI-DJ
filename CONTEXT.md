@@ -71,3 +71,31 @@ _Avoid_: full song generation
 **Microphone Sensing**:
 Participant-device audio sensing derived from local microphone features such as loudness and onset rate, required for the MVP alongside Camera Sensing.
 _Avoid_: audio-only MVP
+
+**Track Candidate**:
+A playable or potentially playable music choice with a stable provider identity and enough visible metadata for the host or Selection Engine to distinguish it from alternatives.
+_Avoid_: song result, audio option
+
+**Track Profile**:
+Host-curated metadata about a Track Candidate, including language, energy lane, variant type, explicit-content policy, and selection history. Track Profiles are selection metadata, not analysis of protected provider audio.
+_Avoid_: AI audio label, inferred song meaning
+
+**Selection Request**:
+The constraints used to choose the next Track Candidate, including manual versus automatic mode, language preference, room-energy target, remix preference, explicit-content policy, and diversity rules.
+_Avoid_: song command
+
+**Selection Decision**:
+The Selection Engine's explainable result: the chosen Track Candidate, its score/reason, and whether the host must confirm before playback.
+_Avoid_: recommendation
+
+**Music Selection Engine**:
+The provider-neutral deep module that ranks eligible Track Candidates for a Selection Request. It supplies both manual disambiguation and automatic room-vibe decisions while leaving provider playback to an Adapter.
+_Avoid_: Spotify picker, DJ brain
+
+**Language Preference**:
+The host's requested language set and fallback behavior for selection. Language is explicit metadata or playlist curation; it is not silently inferred from a Spotify title.
+_Avoid_: language detection
+
+**Variant Type**:
+The host/provider label for a recording version, such as original, remix, edit, extended, live, or instrumental.
+_Avoid_: remix flag

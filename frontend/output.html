@@ -36,6 +36,43 @@
         <div><span>People in</span><strong id="participant-count">0</strong></div>
       </div>
       <button id="start-audio" class="button start-audio-button" type="button">Start audio output</button>
+      <button id="connect-spotify" class="button secondary provider-button" type="button">Connect Spotify</button>
+      <p id="spotify-status" class="rehearsal-status">Local AI-DJ audio is active by default.</p>
+      <div class="spotify-controls">
+        <label for="spotify-search">Search Spotify tracks</label>
+        <div class="spotify-search-row">
+          <input id="spotify-search" type="search" placeholder="Song name or artist" autocomplete="off" />
+          <button id="search-spotify" class="button secondary" type="button">Search</button>
+        </div>
+        <div id="spotify-results" class="spotify-results" aria-live="polite"></div>
+        <label for="spotify-track-uri">Or paste a Spotify track URI</label>
+        <input id="spotify-track-uri" type="text" placeholder="spotify:track:…" autocomplete="off" spellcheck="false" />
+        <button id="play-spotify" class="button secondary" type="button">Play Spotify track</button>
+        <details class="spotify-auto-panel">
+          <summary>Automatic vibe DJ</summary>
+          <p class="small muted">Assign Spotify playlists to energy bands. The host remains in control; switching waits for a cooldown.</p>
+          <label for="auto-language">Language preference</label>
+          <select id="auto-language">
+            <option value="">Mixed language</option>
+            <option value="English">English</option>
+            <option value="Hindi">Hindi</option>
+            <option value="Punjabi">Punjabi</option>
+          </select>
+          <label for="auto-remix">Remix preference</label>
+          <select id="auto-remix">
+            <option value="allow">Allow remixes</option>
+            <option value="avoid">Prefer originals</option>
+            <option value="prefer">Prefer remixes at peak</option>
+          </select>
+          <label>Calm playlist <input id="auto-calm-playlist" type="text" placeholder="spotify:playlist:…" /></label>
+          <label>Warm playlist <input id="auto-warm-playlist" type="text" placeholder="spotify:playlist:…" /></label>
+          <label>Groove playlist <input id="auto-groove-playlist" type="text" placeholder="spotify:playlist:…" /></label>
+          <label>Active playlist <input id="auto-active-playlist" type="text" placeholder="spotify:playlist:…" /></label>
+          <label>Peak / remix playlist <input id="auto-peak-playlist" type="text" placeholder="spotify:playlist:…" /></label>
+          <button id="toggle-auto-dj" class="button secondary" type="button">Start automatic vibe DJ</button>
+          <p id="auto-dj-status" class="rehearsal-status">Automatic mode is off.</p>
+        </details>
+      </div>
       <p id="dj-decision" class="muted small">AI is analysing the room and loaded music.</p>
       <p class="muted small">The reactive music engine changes arrangement with the room. Audio playback requires one click in this tab.</p>
       <a class="button secondary booth-launch-button" href="/booth.html" aria-label="Open Booth Device controller">Open Booth Device controller</a>

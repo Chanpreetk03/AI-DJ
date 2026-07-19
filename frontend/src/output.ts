@@ -1,5 +1,7 @@
 import { createConnection } from "./connection";
 import { RealMusicDecks } from "./realMusic";
+import { SpotifyPlaybackAdapter, type SpotifyTrackSearchResult } from "./spotifyPlayback";
+import { MusicSelectionEngine, type EnergyBand, type TrackProfile } from "./musicSelection";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
 import "./styles.css";
@@ -18,16 +20,230 @@ const closeInvite = document.querySelector<HTMLButtonElement>("#close-invite")!;
 const inviteQr = document.querySelector<HTMLCanvasElement>("#invite-qr")!;
 const inviteUrl = document.querySelector<HTMLElement>("#invite-url")!;
 const copyInvite = document.querySelector<HTMLButtonElement>("#copy-invite")!;
+const connectSpotify = document.querySelector<HTMLButtonElement>("#connect-spotify")!;
+const spotifyStatus = document.querySelector<HTMLElement>("#spotify-status")!;
+const spotifyTrackUri = document.querySelector<HTMLInputElement>("#spotify-track-uri")!;
+const playSpotify = document.querySelector<HTMLButtonElement>("#play-spotify")!;
+const spotifySearch = document.querySelector<HTMLInputElement>("#spotify-search")!;
+const searchSpotify = document.querySelector<HTMLButtonElement>("#search-spotify")!;
+const spotifyResults = document.querySelector<HTMLElement>("#spotify-results")!;
+const autoLanguage = document.querySelector<HTMLSelectElement>("#auto-language")!;
+const autoRemix = document.querySelector<HTMLSelectElement>("#auto-remix")!;
+const toggleAutoDj = document.querySelector<HTMLButtonElement>("#toggle-auto-dj")!;
+const autoDjStatus = document.querySelector<HTMLElement>("#auto-dj-status")!;
 const connection = createConnection();
 const djDecision = document.querySelector<HTMLElement>("#dj-decision")!;
 const stemPack = new RealMusicDecks(
   () => undefined,
   message => djDecision.textContent = message,
 );
+const spotify = new SpotifyPlaybackAdapter();
+const musicSelectionEngine = new MusicSelectionEngine();
 const participantUrl = new URL("/participant.html", window.location.origin).toString();
 let targetEnergy = 0;
 let displayedEnergy = 0;
 let isStartingAudio = false;
+let isAutomaticDjEnabled = false;
+let isLoadingAutomaticPlaylists = false;
+let automaticCandidates: SpotifyTrackSearchResult[] = [];
+let automaticProfiles: TrackProfile[] = [];
+let automaticLastTrackUri: string | undefined;
+let automaticLastSelectionAt = 0;
+let automaticNextSelectionAt = 0;
+let automaticLastBand: EnergyBand | undefined;
+
+if (!spotify.isConfigured) {
+  connectSpotify.title = "Configure VITE_SPOTIFY_CLIENT_ID to enable Spotify";
+}
+
+connectSpotify.addEventListener("click", async () => {
+  connectSpotify.disabled = true;
+  spotifyStatus.textContent = "Connecting to Spotify…";
+  try {
+    await spotify.connect(message => spotifyStatus.textContent = message);
+  } catch (error) {
+    console.error(error);
+    spotifyStatus.textContent = error instanceof Error ? error.message : "Spotify connection failed";
+    connectSpotify.disabled = false;
+  }
+});
+
+playSpotify.addEventListener("click", async () => {
+  playSpotify.disabled = true;
+  try {
+    await spotify.playTrack(spotifyTrackUri.value.trim());
+    spotifyStatus.textContent = "Spotify playback requested — local AI-DJ remains available";
+  } catch (error) {
+    console.error(error);
+    spotifyStatus.textContent = error instanceof Error ? error.message : "Spotify playback failed";
+  } finally {
+    playSpotify.disabled = false;
+  }
+});
+
+searchSpotify.addEventListener("click", () => void searchSpotifyTracks());
+spotifySearch.addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    void searchSpotifyTracks();
+  }
+});
+
+toggleAutoDj.addEventListener("click", () => void toggleAutomaticDj());
+
+async function toggleAutomaticDj(): Promise<void> {
+  if (isAutomaticDjEnabled) {
+    isAutomaticDjEnabled = false;
+    toggleAutoDj.textContent = "Start automatic vibe DJ";
+    autoDjStatus.textContent = "Automatic mode is off.";
+    return;
+  }
+
+  if (!spotify.isConfigured) {
+    autoDjStatus.textContent = "Configure Spotify before starting automatic mode.";
+    return;
+  }
+  isLoadingAutomaticPlaylists = true;
+  toggleAutoDj.disabled = true;
+  autoDjStatus.textContent = "Loading playlist lanes…";
+  try {
+    const lanes: Array<{ band: EnergyBand; inputId: string }> = [
+      { band: "calm", inputId: "auto-calm-playlist" },
+      { band: "warm", inputId: "auto-warm-playlist" },
+      { band: "groove", inputId: "auto-groove-playlist" },
+      { band: "active", inputId: "auto-active-playlist" },
+      { band: "peak", inputId: "auto-peak-playlist" },
+    ];
+    const loaded = await Promise.all(lanes.map(async lane => {
+      const input = document.querySelector<HTMLInputElement>(`#${lane.inputId}`)!;
+      const playlistUri = input.value.trim();
+      if (playlistUri.length === 0) return { lane, tracks: [] as SpotifyTrackSearchResult[] };
+      return { lane, tracks: await spotify.getPlaylistTracks(playlistUri) };
+    }));
+    automaticCandidates = loaded.flatMap(result => result.tracks).filter((track, index, tracks) => tracks.findIndex(other => other.uri === track.uri) === index);
+    const language = autoLanguage.value.trim();
+    automaticProfiles = loaded.flatMap(result => result.tracks.map(track => ({
+      trackUri: track.uri,
+      languageTags: language.length === 0 ? [] : [language],
+      energyBand: result.lane.band,
+      variantType: result.lane.band === "peak" ? "remix" : "original",
+      hostTags: result.lane.band === "peak" ? ["preferred"] : [],
+      playCount: 0,
+    })));
+    if (automaticCandidates.length === 0) {
+      throw new Error("Add at least one Spotify playlist URI.");
+    }
+    isAutomaticDjEnabled = true;
+    toggleAutoDj.textContent = "Stop automatic vibe DJ";
+    autoDjStatus.textContent = `Automatic mode ready · ${automaticCandidates.length} tracks loaded`;
+    await maybeSelectAutomaticTrack();
+  } catch (error) {
+    console.error(error);
+    autoDjStatus.textContent = error instanceof Error ? error.message : "Could not load automatic playlists";
+  } finally {
+    isLoadingAutomaticPlaylists = false;
+    toggleAutoDj.disabled = false;
+  }
+}
+
+async function maybeSelectAutomaticTrack(): Promise<void> {
+  if (!isAutomaticDjEnabled || isLoadingAutomaticPlaylists) return;
+  const now = Date.now();
+  const band = musicSelectionEngine.energyBand(targetEnergy);
+  const minimumDwellMilliseconds = 45_000;
+  if (now < automaticNextSelectionAt && (automaticLastBand === band || now - automaticLastSelectionAt < minimumDwellMilliseconds)) return;
+  const decision = musicSelectionEngine.selectNext({
+    mode: "automatic",
+    roomEnergy: targetEnergy,
+    preferredLanguages: autoLanguage.value.length === 0 ? [] : [autoLanguage.value],
+    languageFallback: "ask",
+    remixPreference: autoRemix.value as "avoid" | "allow" | "prefer",
+    explicitPolicy: "allow",
+    currentTrackUri: automaticLastTrackUri,
+    nowMilliseconds: now,
+    minimumReplayGapMilliseconds: 20 * 60_000,
+    minimumArtistGapMilliseconds: 3 * 60_000,
+  }, automaticCandidates, automaticProfiles);
+  if (decision.candidate === null || decision.requiresConfirmation) {
+    autoDjStatus.textContent = decision.reason.join(" · ");
+    return;
+  }
+  try {
+    await spotify.playTrack(decision.candidate.uri);
+    automaticLastTrackUri = decision.candidate.uri;
+    automaticLastSelectionAt = now;
+    automaticNextSelectionAt = now + decision.candidate.durationMilliseconds;
+    automaticLastBand = band;
+    autoDjStatus.textContent = `Auto DJ · ${decision.reason.join(" · ")}`;
+  } catch (error) {
+    console.error(error);
+    autoDjStatus.textContent = error instanceof Error ? error.message : "Automatic Spotify playback failed";
+  }
+}
+
+async function searchSpotifyTracks(): Promise<void> {
+  searchSpotify.disabled = true;
+  spotifyResults.replaceChildren();
+  spotifyStatus.textContent = "Searching Spotify…";
+  try {
+    const tracks = await spotify.searchTracks(spotifySearch.value);
+    if (tracks.length === 0) {
+      spotifyResults.textContent = "No matching tracks found.";
+      spotifyStatus.textContent = "Spotify search complete";
+      return;
+    }
+    tracks.forEach(track => spotifyResults.append(createTrackResult(track)));
+    spotifyStatus.textContent = "Choose the exact version you want to play";
+  } catch (error) {
+    console.error(error);
+    spotifyStatus.textContent = error instanceof Error ? error.message : "Spotify search failed";
+  } finally {
+    searchSpotify.disabled = false;
+  }
+}
+
+function createTrackResult(track: SpotifyTrackSearchResult): HTMLElement {
+  const result = document.createElement("button");
+  result.type = "button";
+  result.className = "spotify-result";
+  result.disabled = !track.isPlayable;
+  const duration = `${Math.floor(track.durationMilliseconds / 60_000)}:${String(Math.floor(track.durationMilliseconds / 1_000) % 60).padStart(2, "0")}`;
+  result.innerHTML = `<strong></strong><span></span><small></small>`;
+  result.querySelector("strong")!.textContent = track.name;
+  result.querySelector("span")!.textContent = `${track.artists.join(", ")} · ${track.album}`;
+  result.querySelector("small")!.textContent = `${track.releaseDate.slice(0, 4)} · ${duration}${track.explicit ? " · Explicit" : ""}${track.isPlayable ? "" : " · Unavailable"}`;
+  result.addEventListener("click", async () => {
+    const decision = musicSelectionEngine.selectNext({
+      mode: "manual",
+      roomEnergy: targetEnergy,
+      preferredLanguages: [],
+      languageFallback: "mixed",
+      remixPreference: "allow",
+      explicitPolicy: "allow",
+      selectedTrackUri: track.uri,
+      nowMilliseconds: Date.now(),
+      minimumReplayGapMilliseconds: 0,
+      minimumArtistGapMilliseconds: 0,
+    }, [track], []);
+    if (decision.candidate !== null) {
+      spotifyTrackUri.value = decision.candidate.uri;
+      await playSpotifyTrack(decision.candidate.uri);
+    }
+  });
+  return result;
+}
+
+async function playSpotifyTrack(uri: string): Promise<void> {
+  playSpotify.disabled = true;
+  try {
+    await spotify.playTrack(uri);
+    spotifyStatus.textContent = "Spotify playback requested — local AI-DJ remains available";
+  } catch (error) {
+    console.error(error);
+    spotifyStatus.textContent = error instanceof Error ? error.message : "Spotify playback failed";
+  } finally {
+    playSpotify.disabled = false;
+  }
+}
 
 connection.on("MusicParamsUpdated", (params: MusicParams) => {
   tempo.textContent = `${Math.round(params.tempo)} BPM`;
@@ -39,6 +255,7 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
   participantCount.textContent = `${state.activeClients}`;
   targetEnergy = state.energy;
   stemPack.setRoomState(state);
+  void maybeSelectAutomaticTrack();
 });
 
 function animateSpeaker(): void {

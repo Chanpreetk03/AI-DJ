@@ -22,6 +22,19 @@ The frontend reads its backend URL from `frontend/.env`. Copy `frontend/.env.exa
 
 Open the Vite URL, then use one tab for `participant.html`, `output.html`, or `booth.html`.
 
+### Optional Spotify host playback
+
+The local AI-DJ engine remains the default and is not replaced. The host output page can optionally connect to Spotify's official Web Playback SDK. To enable it, create a Spotify Developer app, add the exact HTTPS output URL (for example `https://your-ngrok-host.ngrok-free.dev/output.html`) as a Redirect URI, and set these values in `frontend/.env`:
+
+```text
+VITE_SPOTIFY_CLIENT_ID=your-spotify-client-id
+VITE_SPOTIFY_REDIRECT_URI=https://your-ngrok-host.ngrok-free.dev/output.html
+```
+
+The Spotify button is host-only and uses OAuth PKCE. It requires the app owner to have Spotify Premium and may require authorized users to be added to the Spotify app allowlist. Spotify playback stays in Spotify's official player; it is not downloaded, stem-split, remixed, or routed through the local AI-DJ audio engine. Keep local AI-DJ mode for reactive mixing and use Spotify only as an explicitly separate playback experiment. Review `docs/streaming-service-integration-research.md` before presenting this mode.
+
+To use automatic Spotify selection, open the `Automatic vibe DJ` section on the host output page and enter playlist URIs for the calm, warm, groove, active, and peak/remix lanes. Select the language and remix preference, then click `Start automatic vibe DJ`. Room energy selects the closest lane; a cooldown prevents rapid switching. Put remix versions in the peak/remix playlist so they remain explicit track choices. Automatic mode uses Spotify's official player and leaves the local AI-DJ engine available as fallback.
+
 The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
 
 For operator control, open `status.html` in a separate tab. It shows connected clients, the latest source/vibe, room energy, current Music Parameters, and output-tab health. If phone sensing is unavailable, use `fallback.html` for a rehearsed synthetic sequence or manual fallback control.
