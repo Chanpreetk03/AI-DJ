@@ -115,4 +115,44 @@ All commands should complete successfully. The backend test suite should report 
 7. Use the Booth controller as a fallback.
 8. Confirm the host, participant, Booth, and audio remain responsive throughout.
 
+## 9. Spotify manual search and selection
+
+Configure `frontend/.env` first:
+
+```text
+VITE_SPOTIFY_CLIENT_ID=your-client-id
+VITE_SPOTIFY_REDIRECT_URI=https://YOUR-NGROK-URL.ngrok-free.dev/output.html
+```
+
+Register the exact redirect URI in the Spotify Developer Dashboard, then restart Vite.
+
+1. Open the host output page over the configured HTTPS URL.
+2. Click `Connect Spotify` and authorize the host account.
+3. Search for a song by title or artist.
+4. Confirm multiple candidates show artist, album, release year, duration, explicit status, and playability.
+5. Search for a song with an original and remix version.
+6. Confirm the host can choose the exact version instead of the first result.
+7. Click a result and confirm the selected Spotify URI is played by the official Spotify player.
+8. Confirm local AI-DJ audio remains available separately.
+
+## 10. Spotify automatic vibe DJ
+
+1. Connect Spotify on the host page.
+2. Expand `Automatic vibe DJ`.
+3. Select a language preference or `Mixed language`.
+4. Select `Allow remixes`, `Prefer originals`, or `Prefer remixes at peak`.
+5. Click `Start automatic vibe DJ`.
+6. Confirm AI-DJ searches Spotify using a query such as `calm English playlist`.
+7. Use the participant phone, Booth controller, or fallback controls to change room energy.
+8. Confirm the search changes to the appropriate energy query, such as `groove English playlist` or `high energy remix English playlist`.
+9. Confirm the selected track follows the closest energy band.
+10. Confirm the same track is not immediately repeated.
+11. Confirm energy fluctuations do not cause rapid track switching during the cooldown.
+12. Confirm remix versions are treated as distinct Spotify tracks when the peak/remix query returns them.
+13. Stop automatic mode and confirm it no longer changes Spotify playback.
+14. Test a language with no matching results and confirm a clear status message appears.
+15. Test a Spotify search or playlist-loading failure and confirm local playback remains available.
+
+Do not start local audio and Spotify playback together unless simultaneous output is intentional. Spotify audio must remain in Spotify's official player; it must not be downloaded, stem-split, remixed, or routed through the local AI-DJ mixer.
+
 Record failures under: audio loading, balance, clicks/pops, motion response, permissions, reconnect, Booth controls, mobile layout, or ngrok access.
