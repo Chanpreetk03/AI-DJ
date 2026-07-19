@@ -68,6 +68,33 @@
           <p id="auto-dj-status" class="rehearsal-status">Automatic mode is off.</p>
         </details>
       </div>
+      <button id="connect-apple-music" class="button secondary provider-button" type="button">Connect Apple Music</button>
+      <p id="apple-music-status" class="rehearsal-status">Apple Music playback uses the official MusicKit player.</p>
+      <div class="spotify-controls">
+        <label for="apple-music-search">Search Apple Music songs</label>
+        <div class="spotify-search-row">
+          <input id="apple-music-search" type="search" placeholder="Song name or artist" autocomplete="off" />
+          <button id="search-apple-music" class="button secondary" type="button">Search</button>
+        </div>
+        <div id="apple-music-results" class="spotify-results" aria-live="polite"></div>
+        <label for="apple-music-song-id">Or paste an Apple Music song ID</label>
+        <input id="apple-music-song-id" type="text" placeholder="Song ID" autocomplete="off" spellcheck="false" />
+        <button id="play-apple-music" class="button secondary" type="button">Play Apple Music song</button>
+      </div>
+      <button id="connect-youtube-music" class="button secondary provider-button" type="button">Connect YouTube Music</button>
+      <p id="youtube-music-status" class="rehearsal-status">YouTube Music playback uses the official YouTube player.</p>
+      <div class="spotify-controls">
+        <label for="youtube-music-search">Search YouTube Music</label>
+        <div class="spotify-search-row">
+          <input id="youtube-music-search" type="search" placeholder="Song name or artist" autocomplete="off" />
+          <button id="search-youtube-music" class="button secondary" type="button">Search</button>
+        </div>
+        <div id="youtube-music-results" class="spotify-results" aria-live="polite"></div>
+        <label for="youtube-music-video-id">Or paste a YouTube video ID</label>
+        <input id="youtube-music-video-id" type="text" placeholder="11-character video ID" autocomplete="off" spellcheck="false" />
+        <button id="play-youtube-music" class="button secondary" type="button">Play YouTube Music</button>
+        <div id="youtube-player" class="youtube-player" aria-label="YouTube Music player"></div>
+      </div>
       <p id="dj-decision" class="muted small">AI is analysing the room and loaded music.</p>
       <p class="muted small">The reactive music engine changes arrangement with the room. Audio playback requires one click in this tab.</p>
       <a class="button secondary booth-launch-button" href="/booth.html" aria-label="Open Booth Device controller">Open Booth Device controller</a>

@@ -35,6 +35,27 @@ The Spotify button is host-only and uses OAuth PKCE. It requires the app owner t
 
 To use automatic Spotify selection, open the `Automatic vibe DJ` section on the host output page, select a language and remix preference, then click `Start automatic vibe DJ`. AI-DJ searches Spotify for queries such as `calm English playlist`, `energetic dance Hindi playlist`, or `high energy remix Punjabi playlist`, loads playable tracks from the best matching results, and chooses from them according to Room State. A cooldown prevents rapid switching. Automatic mode uses Spotify's official player and leaves the local AI-DJ engine available as fallback.
 
+### Optional Apple Music host playback
+
+The host output page can also connect to Apple Music through the official MusicKit on the Web player. Create an Apple Music developer token, serve the app over HTTPS, and set these values in `frontend/.env`:
+
+```text
+VITE_APPLE_MUSIC_DEVELOPER_TOKEN=your-signed-apple-music-developer-token
+VITE_APPLE_MUSIC_STOREFRONT=us
+```
+
+Click `Connect Apple Music`, authorize the host's subscriber account, search the Apple Music catalog, and choose a song. Apple Music playback remains provider-controlled and separate from the local AI-DJ mixer.
+
+### Optional YouTube Music host playback
+
+The host output page can also search music videos through YouTube Data API v3 and play them in YouTube's official IFrame player. Enable the YouTube Data API, restrict a browser API key to the app origin, and set:
+
+```text
+VITE_YOUTUBE_API_KEY=your-youtube-data-api-key
+```
+
+Click `Connect YouTube Music`, search, and choose a result. YouTube playback remains embedded and provider-controlled; AI-DJ does not download or remix the audio.
+
 The participant page requires a secure browser context for camera and microphone access. Use an HTTPS tunnel for a real phone during the demo; local `localhost` works for laptop-only checks.
 
 For operator control, open `status.html` in a separate tab. It shows connected clients, the latest source/vibe, room energy, current Music Parameters, and output-tab health. If phone sensing is unavailable, use `fallback.html` for a rehearsed synthetic sequence or manual fallback control.

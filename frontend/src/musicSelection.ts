@@ -7,7 +7,7 @@ export type VariantType = "original" | "remix" | "edit" | "extended" | "live" | 
 
 export type TrackCandidate = {
   uri: string;
-  provider: "spotify" | "local";
+  provider: "spotify" | "apple-music" | "youtube-music" | "local";
   title: string;
   artists: string[];
   album: string;
