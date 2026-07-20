@@ -1,7 +1,6 @@
 import { createConnection, currentRoomId, joinRoom, roomUrl } from "./connection";
 import { RealMusicDecks } from "./realMusic";
 import { hasSpotifyAuthorizationCallback, SpotifyPlaybackAdapter, type SpotifyTrackSearchResult } from "./spotifyPlayback";
-import { AppleMusicPlaybackAdapter, type AppleMusicTrackSearchResult } from "./appleMusicPlayback";
 import { YoutubeMusicPlaybackAdapter, type YoutubeMusicSearchResult } from "./youtubeMusicPlayback";
 import { MusicSelectionEngine, type EnergyBand, type TrackProfile } from "./musicSelection";
 import { DjDirectiveRequestError, requestDjDirective, type DjDirective, type DjPreferences, type DjSongIdentity } from "./geminiDj";
@@ -31,13 +30,6 @@ const playSpotify = document.querySelector<HTMLButtonElement>("#play-spotify")!;
 const spotifySearch = document.querySelector<HTMLInputElement>("#spotify-search")!;
 const searchSpotify = document.querySelector<HTMLButtonElement>("#search-spotify")!;
 const spotifyResults = document.querySelector<HTMLElement>("#spotify-results")!;
-const connectAppleMusic = document.querySelector<HTMLButtonElement>("#connect-apple-music")!;
-const appleMusicStatus = document.querySelector<HTMLElement>("#apple-music-status")!;
-const appleMusicSongId = document.querySelector<HTMLInputElement>("#apple-music-song-id")!;
-const playAppleMusic = document.querySelector<HTMLButtonElement>("#play-apple-music")!;
-const appleMusicSearch = document.querySelector<HTMLInputElement>("#apple-music-search")!;
-const searchAppleMusic = document.querySelector<HTMLButtonElement>("#search-apple-music")!;
-const appleMusicResults = document.querySelector<HTMLElement>("#apple-music-results")!;
 const connectYoutubeMusic = document.querySelector<HTMLButtonElement>("#connect-youtube-music")!;
 const youtubeMusicStatus = document.querySelector<HTMLElement>("#youtube-music-status")!;
 const youtubeMusicVideoId = document.querySelector<HTMLInputElement>("#youtube-music-video-id")!;
@@ -81,7 +73,6 @@ const stemPack = new RealMusicDecks(
   message => djIntent.textContent = message,
 );
 const spotify = new SpotifyPlaybackAdapter();
-const appleMusic = new AppleMusicPlaybackAdapter();
 const youtubeMusic = new YoutubeMusicPlaybackAdapter();
 const musicSelectionEngine = new MusicSelectionEngine();
 const participantUrl = roomUrl("/participant.html");
@@ -90,7 +81,6 @@ let displayedEnergy = 0;
 let isStartingAudio = false;
 let localAudioWasStarted = false;
 let spotifyOwnsAudio = false;
-let appleMusicOwnsAudio = false;
 let youtubeMusicOwnsAudio = false;
 let isAutomaticDjEnabled = false;
 let isLoadingAutomaticCandidates = false;
@@ -117,7 +107,6 @@ type ResolvedGeminiTrack = DjSongIdentity & {
 if (!spotify.isConfigured) {
   connectSpotify.title = "Configure VITE_SPOTIFY_CLIENT_ID to enable Spotify";
 }
-if (!appleMusic.isConfigured) connectAppleMusic.title = "Configure VITE_APPLE_MUSIC_DEVELOPER_TOKEN to enable Apple Music";
 if (!youtubeMusic.isConfigured) connectYoutubeMusic.title = "Configure VITE_YOUTUBE_API_KEY to enable YouTube Music";
 
 spotify.setOnTrackEnded(() => void continueGeminiDj("Spotify track ended"));
@@ -192,81 +181,10 @@ async function playYoutubeMusicTrack(videoId: string): Promise<void> {
 
 async function playYoutubeMusicExclusively(videoId: string, startAtSeconds?: number): Promise<void> {
   if (spotifyOwnsAudio) await spotify.pause();
-  if (appleMusicOwnsAudio) await appleMusic.pause();
   const shouldPauseLocalAudio = localAudioWasStarted && !youtubeMusicOwnsAudio;
   if (shouldPauseLocalAudio) await stemPack.pause();
-  try { await youtubeMusic.playTrack(videoId, startAtSeconds); youtubeMusicOwnsAudio = true; spotifyOwnsAudio = false; appleMusicOwnsAudio = false; }
+  try { await youtubeMusic.playTrack(videoId, startAtSeconds); youtubeMusicOwnsAudio = true; spotifyOwnsAudio = false; }
   catch (error) { if (shouldPauseLocalAudio) await stemPack.start(); throw error; }
-}
-
-connectAppleMusic.addEventListener("click", async () => {
-  connectAppleMusic.disabled = true;
-  appleMusicStatus.textContent = "Connecting to Apple Music…";
-  try { await appleMusic.connect(message => appleMusicStatus.textContent = message); }
-  catch (error) {
-    console.error(error);
-    appleMusicStatus.textContent = error instanceof Error ? error.message : "Apple Music connection failed";
-    connectAppleMusic.disabled = false;
-  }
-});
-
-playAppleMusic.addEventListener("click", async () => {
-  playAppleMusic.disabled = true;
-  try { await playAppleMusicExclusively(appleMusicSongId.value.trim()); appleMusicStatus.textContent = "Apple Music playback requested — local AI-DJ paused"; }
-  catch (error) { console.error(error); appleMusicStatus.textContent = error instanceof Error ? error.message : "Apple Music playback failed"; }
-  finally { playAppleMusic.disabled = false; }
-});
-
-searchAppleMusic.addEventListener("click", () => void searchAppleMusicTracks());
-appleMusicSearch.addEventListener("keydown", event => { if (event.key === "Enter") void searchAppleMusicTracks(); });
-
-async function searchAppleMusicTracks(): Promise<void> {
-  searchAppleMusic.disabled = true;
-  appleMusicResults.replaceChildren();
-  appleMusicStatus.textContent = "Searching Apple Music…";
-  try {
-    const tracks = await appleMusic.searchTracks(appleMusicSearch.value);
-    if (tracks.length === 0) { appleMusicResults.textContent = "No matching songs found."; return; }
-    tracks.forEach(track => appleMusicResults.append(createAppleMusicTrackResult(track)));
-    appleMusicStatus.textContent = "Choose the exact song you want to play";
-  } catch (error) {
-    console.error(error);
-    appleMusicStatus.textContent = error instanceof Error ? error.message : "Apple Music search failed";
-  } finally { searchAppleMusic.disabled = false; }
-}
-
-function createAppleMusicTrackResult(track: AppleMusicTrackSearchResult): HTMLElement {
-  const result = document.createElement("button");
-  result.type = "button";
-  result.className = "spotify-result";
-  result.innerHTML = `<strong></strong><span></span><small></small>`;
-  result.querySelector("strong")!.textContent = track.title;
-  result.querySelector("span")!.textContent = `${track.artists.join(", ")} · ${track.album}`;
-  result.querySelector("small")!.textContent = `${track.releaseDate.slice(0, 4)}${track.explicit ? " · Explicit" : ""}`;
-  result.addEventListener("click", () => { appleMusicSongId.value = track.id; void playAppleMusicTrack(track.id); });
-  return result;
-}
-
-async function playAppleMusicTrack(id: string): Promise<void> {
-  playAppleMusic.disabled = true;
-  try { await playAppleMusicExclusively(id); appleMusicStatus.textContent = "Apple Music playback requested — local AI-DJ paused"; }
-  catch (error) { console.error(error); appleMusicStatus.textContent = error instanceof Error ? error.message : "Apple Music playback failed"; }
-  finally { playAppleMusic.disabled = false; }
-}
-
-async function playAppleMusicExclusively(id: string): Promise<void> {
-  const shouldPauseYoutubeMusic = youtubeMusicOwnsAudio;
-  if (shouldPauseYoutubeMusic) youtubeMusic.pause();
-  const shouldPauseSpotify = spotifyOwnsAudio;
-  if (shouldPauseSpotify) await spotify.pause();
-  const shouldPauseLocalAudio = localAudioWasStarted && !spotifyOwnsAudio && !appleMusicOwnsAudio && !shouldPauseSpotify;
-  if (shouldPauseLocalAudio) await stemPack.pause();
-  try { await appleMusic.playTrack(id); appleMusicOwnsAudio = true; spotifyOwnsAudio = false; youtubeMusicOwnsAudio = false; }
-  catch (error) {
-    if (shouldPauseSpotify) await spotify.playTrack(spotifyTrackUri.value.trim());
-    if (shouldPauseLocalAudio) await stemPack.start();
-    throw error;
-  }
 }
 
 async function connectSpotifyPlayer(): Promise<void> {
@@ -620,19 +538,15 @@ async function playSpotifyTrack(uri: string): Promise<void> {
 async function playSpotifyExclusively(uri: string): Promise<void> {
   const shouldPauseYoutubeMusic = youtubeMusicOwnsAudio;
   if (shouldPauseYoutubeMusic) youtubeMusic.pause();
-  const shouldPauseAppleMusic = appleMusicOwnsAudio;
-  if (shouldPauseAppleMusic) await appleMusic.pause();
-  const shouldPauseLocalAudio = localAudioWasStarted && !spotifyOwnsAudio && !shouldPauseAppleMusic;
+  const shouldPauseLocalAudio = localAudioWasStarted && !spotifyOwnsAudio;
   if (shouldPauseLocalAudio) {
     await stemPack.pause();
   }
   try {
     await spotify.playTrack(uri);
     spotifyOwnsAudio = true;
-    appleMusicOwnsAudio = false;
     youtubeMusicOwnsAudio = false;
   } catch (error) {
-    if (shouldPauseAppleMusic) await appleMusic.playTrack(appleMusicSongId.value.trim());
     if (shouldPauseLocalAudio) {
       await stemPack.start();
     }
@@ -757,10 +671,6 @@ async function startAudioOutput(): Promise<void> {
     if (spotifyOwnsAudio) {
       await spotify.pause();
       spotifyOwnsAudio = false;
-    }
-    if (appleMusicOwnsAudio) {
-      await appleMusic.pause();
-      appleMusicOwnsAudio = false;
     }
     if (youtubeMusicOwnsAudio) {
       youtubeMusic.pause();
