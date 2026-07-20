@@ -47,8 +47,22 @@ const searchYoutubeMusic = document.querySelector<HTMLButtonElement>("#search-yo
 const youtubeMusicResults = document.querySelector<HTMLElement>("#youtube-music-results")!;
 const autoLanguage = document.querySelector<HTMLSelectElement>("#auto-language")!;
 const autoRemix = document.querySelector<HTMLSelectElement>("#auto-remix")!;
-const aiProvider = document.querySelector<HTMLSelectElement>("#ai-provider")!;
-const aiBrief = document.querySelector<HTMLInputElement>("#ai-brief")!;
+const geminiControls = document.querySelector<HTMLElement>(".spotify-auto-panel");
+if (geminiControls !== null && document.querySelector("#ai-brief") === null) {
+  const label = document.createElement("label");
+  label.htmlFor = "ai-brief";
+  label.textContent = "DJ brief";
+  const input = document.createElement("input");
+  input.id = "ai-brief";
+  input.type = "text";
+  input.placeholder = "e.g. late-night love songs, build slowly";
+  input.maxLength = 500;
+  const startButton = geminiControls.querySelector("#toggle-auto-dj");
+  geminiControls.insertBefore(label, startButton);
+  geminiControls.insertBefore(input, startButton);
+}
+const aiProvider = document.querySelector<HTMLSelectElement>("#ai-provider") ?? { value: "spotify" } as HTMLSelectElement;
+const aiBrief = document.querySelector<HTMLInputElement>("#ai-brief") ?? { value: "" } as HTMLInputElement;
 const toggleAutoDj = document.querySelector<HTMLButtonElement>("#toggle-auto-dj")!;
 const autoDjStatus = document.querySelector<HTMLElement>("#auto-dj-status")!;
 const connection = createConnection();
