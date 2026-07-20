@@ -40,6 +40,17 @@ const youtubeMusicResults = document.querySelector<HTMLElement>("#youtube-music-
 const autoLanguage = document.querySelector<HTMLSelectElement>("#auto-language")!;
 const autoRemix = document.querySelector<HTMLSelectElement>("#auto-remix")!;
 const geminiControls = document.querySelector<HTMLElement>(".spotify-auto-panel");
+if (geminiControls !== null && document.querySelector("#ai-provider") === null) {
+  const label = document.createElement("label");
+  label.htmlFor = "ai-provider";
+  label.textContent = "Playback provider";
+  const select = document.createElement("select");
+  select.id = "ai-provider";
+  select.innerHTML = '<option value="spotify">Spotify</option><option value="youtube-music">YouTube Music</option>';
+  const startButton = geminiControls.querySelector("#toggle-auto-dj");
+  geminiControls.insertBefore(label, startButton);
+  geminiControls.insertBefore(select, startButton);
+}
 if (geminiControls !== null && document.querySelector("#ai-brief") === null) {
   const label = document.createElement("label");
   label.htmlFor = "ai-brief";
@@ -75,6 +86,50 @@ const stemPack = new RealMusicDecks(
 const spotify = new SpotifyPlaybackAdapter();
 const youtubeMusic = new YoutubeMusicPlaybackAdapter();
 const musicSelectionEngine = new MusicSelectionEngine();
+let selectedMusicProvider: "spotify" | "youtube-music" = "spotify";
+const sourceGrid = document.querySelector<HTMLElement>(".music-source-grid");
+if (sourceGrid !== null) {
+  const player = document.querySelector<HTMLElement>("#youtube-player")!;
+  const desk = document.createElement("section");
+  desk.className = "unified-source-desk";
+  desk.innerHTML = `<div class="source-provider-switch"><button type="button" data-provider="spotify" class="is-active">Spotify</button><button type="button" data-provider="youtube-music">YouTube Music</button></div><button type="button" class="unified-connect-button">Connect Spotify</button><p class="unified-source-status">Choose a provider, then search its catalog.</p><label>Search songs<div class="spotify-search-row"><input type="search" placeholder="Song name or artist" /><button type="button">Search</button></div></label><div class="unified-source-results spotify-results"></div><section class="youtube-now-playing"><span>NOW PLAYING / YOUTUBE</span></section>`;
+  const status = desk.querySelector<HTMLElement>(".unified-source-status")!;
+  const input = desk.querySelector<HTMLInputElement>("input")!;
+  const search = desk.querySelector<HTMLButtonElement>(".spotify-search-row button")!;
+  const results = desk.querySelector<HTMLElement>(".unified-source-results")!;
+  const connect = desk.querySelector<HTMLButtonElement>(".unified-connect-button")!;
+  const nowPlaying = desk.querySelector<HTMLElement>(".youtube-now-playing")!;
+  nowPlaying.append(player);
+  const setProvider = (provider: "spotify" | "youtube-music") => {
+    selectedMusicProvider = provider;
+    aiProvider.value = provider;
+    connect.textContent = provider === "spotify" ? "Connect Spotify" : "Connect YouTube Music";
+    desk.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach(button => button.classList.toggle("is-active", button.dataset.provider === provider));
+    status.textContent = provider === "spotify" ? "Spotify selected. Connect once, then search." : "YouTube Music selected. Connect once, then search.";
+  };
+  desk.querySelectorAll<HTMLButtonElement>("[data-provider]").forEach(button => button.addEventListener("click", () => setProvider(button.dataset.provider as "spotify" | "youtube-music")));
+  connect.addEventListener("click", () => {
+    if (selectedMusicProvider === "spotify") void connectSpotifyPlayer();
+    else void ensureYoutubeMusicConnected();
+  });
+  search.addEventListener("click", async () => {
+    results.replaceChildren();
+    try {
+      if (selectedMusicProvider === "spotify") {
+        const tracks = await spotify.searchTracks(input.value);
+        tracks.forEach(track => { const button = createTrackResult(track); button.addEventListener("click", () => { void playSpotifyExclusively(track.uri); }); results.append(button); });
+      } else {
+        const tracks = await youtubeMusic.searchTracks(input.value);
+        tracks.forEach(track => { const button = createYoutubeMusicTrackResult(track); button.addEventListener("click", () => { void playYoutubeMusicExclusively(track.videoId); }); results.append(button); });
+      }
+      status.textContent = "Choose a result to play.";
+    } catch (error) { status.textContent = error instanceof Error ? error.message : "Could not search this provider."; }
+  });
+  input.addEventListener("keydown", event => { if (event.key === "Enter") search.click(); });
+  sourceGrid.prepend(desk);
+  if (geminiControls !== null) desk.append(geminiControls);
+  Array.from(sourceGrid.children).filter(child => child !== desk).forEach(child => child.classList.add("legacy-source-controls"));
+}
 const participantUrl = roomUrl("/participant.html");
 let targetEnergy = 0;
 let displayedEnergy = 0;
@@ -82,6 +137,7 @@ let isStartingAudio = false;
 let localAudioWasStarted = false;
 let spotifyOwnsAudio = false;
 let youtubeMusicOwnsAudio = false;
+let youtubeMusicConnectPromise: Promise<void> | undefined;
 let isAutomaticDjEnabled = false;
 let isLoadingAutomaticCandidates = false;
 let automaticCandidates: SpotifyTrackSearchResult[] = [];
@@ -124,16 +180,22 @@ async function continueGeminiDj(trigger: string): Promise<void> {
   await planAndPlayGeminiTrack(trigger);
 }
 
-connectYoutubeMusic.addEventListener("click", async () => {
+async function ensureYoutubeMusicConnected(): Promise<void> {
+  if (youtubeMusicConnectPromise !== undefined) return youtubeMusicConnectPromise;
   connectYoutubeMusic.disabled = true;
   youtubeMusicStatus.textContent = "Connecting to YouTube Music…";
-  try { await youtubeMusic.connect(message => youtubeMusicStatus.textContent = message); }
-  catch (error) {
-    console.error(error);
-    youtubeMusicStatus.textContent = error instanceof Error ? error.message : "YouTube Music connection failed";
-    connectYoutubeMusic.disabled = false;
-  }
-});
+  youtubeMusicConnectPromise = youtubeMusic.connect(message => youtubeMusicStatus.textContent = message)
+    .catch(error => {
+      youtubeMusicConnectPromise = undefined;
+      console.error(error);
+      youtubeMusicStatus.textContent = error instanceof Error ? error.message : "YouTube Music connection failed";
+      connectYoutubeMusic.disabled = false;
+      throw error;
+    });
+  return youtubeMusicConnectPromise;
+}
+
+connectYoutubeMusic.addEventListener("click", () => void ensureYoutubeMusicConnected());
 
 playYoutubeMusic.addEventListener("click", async () => {
   playYoutubeMusic.disabled = true;
@@ -180,6 +242,7 @@ async function playYoutubeMusicTrack(videoId: string): Promise<void> {
 }
 
 async function playYoutubeMusicExclusively(videoId: string, startAtSeconds?: number): Promise<void> {
+  await ensureYoutubeMusicConnected();
   if (spotifyOwnsAudio) await spotify.pause();
   const shouldPauseLocalAudio = localAudioWasStarted && !youtubeMusicOwnsAudio;
   if (shouldPauseLocalAudio) await stemPack.pause();
@@ -190,13 +253,24 @@ async function playYoutubeMusicExclusively(videoId: string, startAtSeconds?: num
 async function connectSpotifyPlayer(): Promise<void> {
   connectSpotify.disabled = true;
   spotifyStatus.textContent = "Connecting to Spotify…";
+  setUnifiedSourceStatus("Connecting to Spotify…");
   try {
-    await spotify.connect(message => spotifyStatus.textContent = message);
+    await spotify.connect(message => {
+      spotifyStatus.textContent = message;
+      setUnifiedSourceStatus(message);
+    });
+    setUnifiedSourceStatus("Spotify connected. Search for a song or start Gemini DJ.");
   } catch (error) {
     console.error(error);
     spotifyStatus.textContent = error instanceof Error ? error.message : "Spotify connection failed";
+    setUnifiedSourceStatus(spotifyStatus.textContent);
     connectSpotify.disabled = false;
   }
+}
+
+function setUnifiedSourceStatus(message: string): void {
+  const status = document.querySelector<HTMLElement>(".unified-source-status");
+  if (status !== null) status.textContent = message;
 }
 
 connectSpotify.addEventListener("click", () => void connectSpotifyPlayer());

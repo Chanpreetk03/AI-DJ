@@ -54,6 +54,7 @@ export class YoutubeMusicPlaybackAdapter {
     if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) throw new Error("Enter a valid YouTube video ID.");
     this.player.loadVideoById(startAtSeconds === undefined ? videoId : { videoId, startSeconds: startAtSeconds });
     this.player.playVideo();
+    await this.confirmPlaybackStarted();
     this.monitorTrackEnd();
   }
 
@@ -84,13 +85,21 @@ export class YoutubeMusicPlaybackAdapter {
     }
   }
 
+  private async confirmPlaybackStarted(): Promise<void> {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (this.player?.getPlayerState() === 1) return;
+      await new Promise<void>(resolve => window.setTimeout(resolve, 250));
+    }
+    throw new Error("YouTube did not start playback. Your browser may require a direct click to allow audio.");
+  }
+
   public async searchTracks(query: string): Promise<YoutubeMusicSearchResult[]> {
     this.apiKey ??= import.meta.env.VITE_YOUTUBE_API_KEY;
     if (!this.apiKey) throw new Error("Connect YouTube Music before searching.");
     const normalizedQuery = query.trim();
     if (normalizedQuery.length < 2) throw new Error("Enter at least two characters to search.");
     const url = new URL("https://www.googleapis.com/youtube/v3/search");
-    url.search = new URLSearchParams({ key: this.apiKey, part: "snippet", q: `${normalizedQuery} music`, type: "video", videoCategoryId: "10", maxResults: "10" }).toString();
+    url.search = new URLSearchParams({ key: this.apiKey, part: "snippet", q: `${normalizedQuery} music`, type: "video", videoCategoryId: "10", videoEmbeddable: "true", maxResults: "10" }).toString();
     const response = await fetch(url);
     if (!response.ok) throw new Error(`YouTube Music search failed (${response.status}).`);
     const body = await response.json() as { items?: Array<{ id?: { videoId?: string }; snippet?: { title?: string; channelTitle?: string; publishedAt?: string } }> };
