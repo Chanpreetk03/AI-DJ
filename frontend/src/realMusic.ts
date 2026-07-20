@@ -196,14 +196,15 @@ export class RealMusicDecks {
     const phraseSeconds = deck.track.profile?.phraseSeconds ?? 16;
     const phrasesElapsed = Math.max(0, Math.ceil((earliestStart - deck.startedAt) / phraseSeconds));
     const startsAt = Math.max(deck.startedAt + phrasesElapsed * phraseSeconds, earliestStart);
-    const endsAt = startsAt + phraseSeconds;
+    const endsAt = startsAt + (overlayOnly ? 8 : phraseSeconds);
+    const fadeEndsAt = overlayOnly ? endsAt + .25 : endsAt;
     this.crowdDropStartsAt = startsAt;
     this.crowdDropEndsAt = endsAt;
     if (overlayOnly) {
       deck.gain.gain.cancelScheduledValues(now);
       deck.gain.gain.setValueAtTime(0.001, now);
       deck.gain.gain.linearRampToValueAtTime(.42, startsAt + .12);
-      deck.gain.gain.linearRampToValueAtTime(0.001, endsAt + .35);
+      deck.gain.gain.linearRampToValueAtTime(0.001, fadeEndsAt);
     }
     this.applyStemMix(deck);
 
@@ -220,7 +221,7 @@ export class RealMusicDecks {
       } else {
         this.applyMix();
       }
-    }, Math.max(0, (endsAt - this.context.currentTime) * 1_000));
+    }, Math.max(0, (fadeEndsAt - this.context.currentTime) * 1_000));
     return true;
   }
 
