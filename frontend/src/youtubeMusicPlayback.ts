@@ -1,12 +1,15 @@
 const youtubeIframeSdkUrl = "https://www.youtube.com/iframe_api";
 
 type YoutubePlayer = {
-  loadVideoById(videoId: string): void;
+  loadVideoById(video: string | { videoId: string; startSeconds?: number }): void;
   playVideo(): void;
   pauseVideo(): void;
+  getPlayerState(): number;
+  getCurrentTime(): number;
+  getDuration(): number;
   destroy(): void;
 };
-type YoutubeSdk = { Player: new (element: string, options: { height: string; width: string; videoId?: string; playerVars?: Record<string, number>; events: { onReady: () => void; onError: (event: { data: number }) => void } }) => YoutubePlayer };
+type YoutubeSdk = { Player: new (element: string, options: { height: string; width: string; videoId?: string; playerVars?: Record<string, number>; events: { onReady: () => void; onError: (event: { data: number }) => void; onStateChange?: (event: { data: number }) => void } }) => YoutubePlayer };
 
 export type YoutubeMusicSearchResult = {
   videoId: string;
@@ -27,6 +30,8 @@ declare global {
 export class YoutubeMusicPlaybackAdapter {
   private player: YoutubePlayer | undefined;
   private apiKey: string | undefined;
+  private onTrackEnded: (() => void) | undefined;
+  private endMonitor: number | undefined;
 
   public get isConfigured(): boolean { return Boolean(import.meta.env.VITE_YOUTUBE_API_KEY); }
 
@@ -44,14 +49,40 @@ export class YoutubeMusicPlaybackAdapter {
     });
   }
 
-  public async playTrack(videoId: string): Promise<void> {
+  public async playTrack(videoId: string, startAtSeconds?: number): Promise<void> {
     if (!this.player) throw new Error("Connect YouTube Music before starting playback.");
     if (!/^[A-Za-z0-9_-]{11}$/.test(videoId)) throw new Error("Enter a valid YouTube video ID.");
-    this.player.loadVideoById(videoId);
+    this.player.loadVideoById(startAtSeconds === undefined ? videoId : { videoId, startSeconds: startAtSeconds });
     this.player.playVideo();
+    this.monitorTrackEnd();
   }
 
-  public pause(): void { this.player?.pauseVideo(); }
+  public pause(): void {
+    this.player?.pauseVideo();
+    this.stopEndMonitor();
+  }
+
+  public setOnTrackEnded(callback: () => void): void { this.onTrackEnded = callback; }
+
+  private monitorTrackEnd(): void {
+    this.stopEndMonitor();
+    this.endMonitor = window.setInterval(() => {
+      const duration = this.player?.getDuration() ?? 0;
+      const currentTime = this.player?.getCurrentTime() ?? 0;
+      const ended = this.player?.getPlayerState() === 0 || (duration > 0 && currentTime >= duration - 0.25);
+      if (ended) {
+        this.stopEndMonitor();
+        this.onTrackEnded?.();
+      }
+    }, 1_000);
+  }
+
+  private stopEndMonitor(): void {
+    if (this.endMonitor !== undefined) {
+      window.clearInterval(this.endMonitor);
+      this.endMonitor = undefined;
+    }
+  }
 
   public async searchTracks(query: string): Promise<YoutubeMusicSearchResult[]> {
     this.apiKey ??= import.meta.env.VITE_YOUTUBE_API_KEY;

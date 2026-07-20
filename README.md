@@ -286,6 +286,8 @@ Copy-Item frontend/.env.example frontend/.env
 | `FRONTEND_ORIGINS` | Backend environment | Comma-separated browser origins allowed by CORS. Include the active HTTPS tunnel origin. |
 | `ROOM_HOST_TOKEN_SECRET` | Backend environment | Long random secret used to sign host tokens when host-token enforcement is enabled. |
 | `ROOM_REQUIRE_HOST_TOKEN` | Backend environment | Set to `true` only when host-token enforcement is required. It is `false` by default for anonymous rooms. |
+| `GEMINI_API_KEY` | Backend environment | Gemini API key used only by the host-only discovery director. Never place it in `frontend/.env`. |
+| `GEMINI_MODEL` | Backend environment | Optional Gemini model name; defaults to `gemini-3.5-flash`. |
 | `ASPNETCORE_ENVIRONMENT` | Backend environment | Set to `Development` locally; Production disables unauthenticated `demo` host access. |
 
 Example production secret setup:

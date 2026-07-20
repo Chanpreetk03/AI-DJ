@@ -29,6 +29,14 @@ export function roomUrl(path: string): string {
   return url.toString();
 }
 
+export function apiBaseUrl(): string {
+  return import.meta.env.VITE_API_URL ?? window.location.origin;
+}
+
+export function currentRoomHostToken(): string | null {
+  return hostTokenForRoom(currentRoomId());
+}
+
 export async function createRoom(): Promise<CreatedRoom> {
   const response = await fetch(`${apiBaseUrl()}/api/rooms`, {
     method: "POST",
@@ -44,10 +52,6 @@ export async function createRoom(): Promise<CreatedRoom> {
 
 export function rememberHostToken(roomId: string, token: string): void {
   window.localStorage.setItem(hostTokenKey(roomId), token);
-}
-
-function apiBaseUrl(): string {
-  return import.meta.env.VITE_API_URL ?? window.location.origin;
 }
 
 function hostTokenForRoom(roomId: string): string | null {

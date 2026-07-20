@@ -1,7 +1,12 @@
 const spotifySdkUrl = "https://sdk.scdn.co/spotify-player.js";
 const spotifyScopes = ["streaming", "user-read-email", "user-read-private", "user-modify-playback-state", "playlist-read-private"];
 
-type SpotifyPlayerState = { paused: boolean; track_window?: { current_track?: { name?: string } } };
+export function hasSpotifyAuthorizationCallback(search: string): boolean {
+  const callback = new URLSearchParams(search);
+  return callback.has("code") && callback.has("state");
+}
+
+type SpotifyPlayerState = { paused: boolean; position?: number; duration?: number; track_window?: { current_track?: { name?: string } } };
 type SpotifyPlayer = {
   addListener(event: string, callback: (payload: any) => void): boolean;
   connect(): Promise<boolean>;
@@ -35,6 +40,7 @@ export class SpotifyPlaybackAdapter {
   private accessToken: string | undefined;
   private player: SpotifyPlayer | undefined;
   private deviceId: string | undefined;
+  private onTrackEnded: (() => void) | undefined;
 
   public get isConfigured(): boolean {
     return Boolean(import.meta.env.VITE_SPOTIFY_CLIENT_ID);
@@ -65,6 +71,9 @@ export class SpotifyPlaybackAdapter {
       if (title !== undefined) {
         onStatus(state?.paused ? `Spotify paused · ${title}` : `Spotify playing · ${title}`);
       }
+      if (state?.paused && state.duration !== undefined && state.position !== undefined && state.position >= state.duration - 1_500) {
+        this.onTrackEnded?.();
+      }
     });
     this.player.addListener("account_error", () => onStatus("Spotify Premium is required for browser playback"));
     this.player.addListener("playback_error", payload => onStatus(`Spotify playback error: ${payload.message}`));
@@ -94,6 +103,10 @@ export class SpotifyPlaybackAdapter {
 
   public async pause(): Promise<void> {
     await this.player?.pause();
+  }
+
+  public setOnTrackEnded(callback: () => void): void {
+    this.onTrackEnded = callback;
   }
 
   public async searchTracks(query: string): Promise<SpotifyTrackSearchResult[]> {

@@ -1,8 +1,10 @@
 import { createConnection, currentRoomId, joinRoom, roomUrl } from "./connection";
 import { RealMusicDecks } from "./realMusic";
-import { SpotifyPlaybackAdapter, type SpotifyTrackSearchResult } from "./spotifyPlayback";
+import { hasSpotifyAuthorizationCallback, SpotifyPlaybackAdapter, type SpotifyTrackSearchResult } from "./spotifyPlayback";
+import { AppleMusicPlaybackAdapter, type AppleMusicTrackSearchResult } from "./appleMusicPlayback";
 import { YoutubeMusicPlaybackAdapter, type YoutubeMusicSearchResult } from "./youtubeMusicPlayback";
 import { MusicSelectionEngine, type EnergyBand, type TrackProfile } from "./musicSelection";
+import { DjDirectiveRequestError, requestDjDirective, type DjDirective, type DjPreferences, type DjSongIdentity } from "./geminiDj";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
 import "./navigation";
@@ -12,7 +14,6 @@ const status = document.querySelector<HTMLElement>("#status")!;
 const speaker = document.querySelector<HTMLElement>("#speaker")!;
 const speakerStage = document.querySelector<HTMLElement>(".speaker-stage")!;
 const energyValue = document.querySelector<HTMLElement>("#energy-value")!;
-const hostEnergy = document.querySelector<HTMLOutputElement>("#host-energy");
 const tempo = document.querySelector<HTMLElement>("#tempo")!;
 const layers = document.querySelector<HTMLElement>("#layers")!;
 const participantCount = document.querySelector<HTMLElement>("#participant-count")!;
@@ -30,6 +31,13 @@ const playSpotify = document.querySelector<HTMLButtonElement>("#play-spotify")!;
 const spotifySearch = document.querySelector<HTMLInputElement>("#spotify-search")!;
 const searchSpotify = document.querySelector<HTMLButtonElement>("#search-spotify")!;
 const spotifyResults = document.querySelector<HTMLElement>("#spotify-results")!;
+const connectAppleMusic = document.querySelector<HTMLButtonElement>("#connect-apple-music")!;
+const appleMusicStatus = document.querySelector<HTMLElement>("#apple-music-status")!;
+const appleMusicSongId = document.querySelector<HTMLInputElement>("#apple-music-song-id")!;
+const playAppleMusic = document.querySelector<HTMLButtonElement>("#play-apple-music")!;
+const appleMusicSearch = document.querySelector<HTMLInputElement>("#apple-music-search")!;
+const searchAppleMusic = document.querySelector<HTMLButtonElement>("#search-apple-music")!;
+const appleMusicResults = document.querySelector<HTMLElement>("#apple-music-results")!;
 const connectYoutubeMusic = document.querySelector<HTMLButtonElement>("#connect-youtube-music")!;
 const youtubeMusicStatus = document.querySelector<HTMLElement>("#youtube-music-status")!;
 const youtubeMusicVideoId = document.querySelector<HTMLInputElement>("#youtube-music-video-id")!;
@@ -39,6 +47,8 @@ const searchYoutubeMusic = document.querySelector<HTMLButtonElement>("#search-yo
 const youtubeMusicResults = document.querySelector<HTMLElement>("#youtube-music-results")!;
 const autoLanguage = document.querySelector<HTMLSelectElement>("#auto-language")!;
 const autoRemix = document.querySelector<HTMLSelectElement>("#auto-remix")!;
+const aiProvider = document.querySelector<HTMLSelectElement>("#ai-provider")!;
+const aiBrief = document.querySelector<HTMLInputElement>("#ai-brief")!;
 const toggleAutoDj = document.querySelector<HTMLButtonElement>("#toggle-auto-dj")!;
 const autoDjStatus = document.querySelector<HTMLElement>("#auto-dj-status")!;
 const connection = createConnection();
@@ -57,6 +67,7 @@ const stemPack = new RealMusicDecks(
   message => djIntent.textContent = message,
 );
 const spotify = new SpotifyPlaybackAdapter();
+const appleMusic = new AppleMusicPlaybackAdapter();
 const youtubeMusic = new YoutubeMusicPlaybackAdapter();
 const musicSelectionEngine = new MusicSelectionEngine();
 const participantUrl = roomUrl("/participant.html");
@@ -65,6 +76,7 @@ let displayedEnergy = 0;
 let isStartingAudio = false;
 let localAudioWasStarted = false;
 let spotifyOwnsAudio = false;
+let appleMusicOwnsAudio = false;
 let youtubeMusicOwnsAudio = false;
 let isAutomaticDjEnabled = false;
 let isLoadingAutomaticCandidates = false;
@@ -76,11 +88,38 @@ let automaticNextSelectionAt = 0;
 let automaticLastBand: EnergyBand | undefined;
 let automaticLoadedBand: EnergyBand | undefined;
 let automaticLanguage = "";
+let isGeminiDjEnabled = false;
+let isGeminiPlanning = false;
+let activeGeminiProvider: "spotify" | "youtube-music" | undefined;
+let geminiTrackTimer: number | undefined;
+let geminiRetryTimer: number | undefined;
+let geminiRetryAttempt = 0;
+let geminiRecentTracks: DjSongIdentity[] = [];
+
+type ResolvedGeminiTrack = DjSongIdentity & {
+  durationMilliseconds: number;
+};
 
 if (!spotify.isConfigured) {
   connectSpotify.title = "Configure VITE_SPOTIFY_CLIENT_ID to enable Spotify";
 }
+if (!appleMusic.isConfigured) connectAppleMusic.title = "Configure VITE_APPLE_MUSIC_DEVELOPER_TOKEN to enable Apple Music";
 if (!youtubeMusic.isConfigured) connectYoutubeMusic.title = "Configure VITE_YOUTUBE_API_KEY to enable YouTube Music";
+
+spotify.setOnTrackEnded(() => void continueGeminiDj("Spotify track ended"));
+youtubeMusic.setOnTrackEnded(() => void continueGeminiDj("YouTube track ended"));
+
+async function continueGeminiDj(trigger: string): Promise<void> {
+  if (!isGeminiDjEnabled || activeGeminiProvider === undefined) return;
+  clearGeminiTrackTimer();
+  clearGeminiRetryTimer();
+  if (localAudioWasStarted) {
+    await stemPack.start();
+  }
+  spotifyOwnsAudio = false;
+  youtubeMusicOwnsAudio = false;
+  await planAndPlayGeminiTrack(trigger);
+}
 
 connectYoutubeMusic.addEventListener("click", async () => {
   connectYoutubeMusic.disabled = true;
@@ -137,15 +176,86 @@ async function playYoutubeMusicTrack(videoId: string): Promise<void> {
   finally { playYoutubeMusic.disabled = false; }
 }
 
-async function playYoutubeMusicExclusively(videoId: string): Promise<void> {
+async function playYoutubeMusicExclusively(videoId: string, startAtSeconds?: number): Promise<void> {
   if (spotifyOwnsAudio) await spotify.pause();
+  if (appleMusicOwnsAudio) await appleMusic.pause();
   const shouldPauseLocalAudio = localAudioWasStarted && !youtubeMusicOwnsAudio;
   if (shouldPauseLocalAudio) await stemPack.pause();
-  try { await youtubeMusic.playTrack(videoId); youtubeMusicOwnsAudio = true; spotifyOwnsAudio = false; }
+  try { await youtubeMusic.playTrack(videoId, startAtSeconds); youtubeMusicOwnsAudio = true; spotifyOwnsAudio = false; appleMusicOwnsAudio = false; }
   catch (error) { if (shouldPauseLocalAudio) await stemPack.start(); throw error; }
 }
 
-connectSpotify.addEventListener("click", async () => {
+connectAppleMusic.addEventListener("click", async () => {
+  connectAppleMusic.disabled = true;
+  appleMusicStatus.textContent = "Connecting to Apple Music…";
+  try { await appleMusic.connect(message => appleMusicStatus.textContent = message); }
+  catch (error) {
+    console.error(error);
+    appleMusicStatus.textContent = error instanceof Error ? error.message : "Apple Music connection failed";
+    connectAppleMusic.disabled = false;
+  }
+});
+
+playAppleMusic.addEventListener("click", async () => {
+  playAppleMusic.disabled = true;
+  try { await playAppleMusicExclusively(appleMusicSongId.value.trim()); appleMusicStatus.textContent = "Apple Music playback requested — local AI-DJ paused"; }
+  catch (error) { console.error(error); appleMusicStatus.textContent = error instanceof Error ? error.message : "Apple Music playback failed"; }
+  finally { playAppleMusic.disabled = false; }
+});
+
+searchAppleMusic.addEventListener("click", () => void searchAppleMusicTracks());
+appleMusicSearch.addEventListener("keydown", event => { if (event.key === "Enter") void searchAppleMusicTracks(); });
+
+async function searchAppleMusicTracks(): Promise<void> {
+  searchAppleMusic.disabled = true;
+  appleMusicResults.replaceChildren();
+  appleMusicStatus.textContent = "Searching Apple Music…";
+  try {
+    const tracks = await appleMusic.searchTracks(appleMusicSearch.value);
+    if (tracks.length === 0) { appleMusicResults.textContent = "No matching songs found."; return; }
+    tracks.forEach(track => appleMusicResults.append(createAppleMusicTrackResult(track)));
+    appleMusicStatus.textContent = "Choose the exact song you want to play";
+  } catch (error) {
+    console.error(error);
+    appleMusicStatus.textContent = error instanceof Error ? error.message : "Apple Music search failed";
+  } finally { searchAppleMusic.disabled = false; }
+}
+
+function createAppleMusicTrackResult(track: AppleMusicTrackSearchResult): HTMLElement {
+  const result = document.createElement("button");
+  result.type = "button";
+  result.className = "spotify-result";
+  result.innerHTML = `<strong></strong><span></span><small></small>`;
+  result.querySelector("strong")!.textContent = track.title;
+  result.querySelector("span")!.textContent = `${track.artists.join(", ")} · ${track.album}`;
+  result.querySelector("small")!.textContent = `${track.releaseDate.slice(0, 4)}${track.explicit ? " · Explicit" : ""}`;
+  result.addEventListener("click", () => { appleMusicSongId.value = track.id; void playAppleMusicTrack(track.id); });
+  return result;
+}
+
+async function playAppleMusicTrack(id: string): Promise<void> {
+  playAppleMusic.disabled = true;
+  try { await playAppleMusicExclusively(id); appleMusicStatus.textContent = "Apple Music playback requested — local AI-DJ paused"; }
+  catch (error) { console.error(error); appleMusicStatus.textContent = error instanceof Error ? error.message : "Apple Music playback failed"; }
+  finally { playAppleMusic.disabled = false; }
+}
+
+async function playAppleMusicExclusively(id: string): Promise<void> {
+  const shouldPauseYoutubeMusic = youtubeMusicOwnsAudio;
+  if (shouldPauseYoutubeMusic) youtubeMusic.pause();
+  const shouldPauseSpotify = spotifyOwnsAudio;
+  if (shouldPauseSpotify) await spotify.pause();
+  const shouldPauseLocalAudio = localAudioWasStarted && !spotifyOwnsAudio && !appleMusicOwnsAudio && !shouldPauseSpotify;
+  if (shouldPauseLocalAudio) await stemPack.pause();
+  try { await appleMusic.playTrack(id); appleMusicOwnsAudio = true; spotifyOwnsAudio = false; youtubeMusicOwnsAudio = false; }
+  catch (error) {
+    if (shouldPauseSpotify) await spotify.playTrack(spotifyTrackUri.value.trim());
+    if (shouldPauseLocalAudio) await stemPack.start();
+    throw error;
+  }
+}
+
+async function connectSpotifyPlayer(): Promise<void> {
   connectSpotify.disabled = true;
   spotifyStatus.textContent = "Connecting to Spotify…";
   try {
@@ -155,7 +265,12 @@ connectSpotify.addEventListener("click", async () => {
     spotifyStatus.textContent = error instanceof Error ? error.message : "Spotify connection failed";
     connectSpotify.disabled = false;
   }
-});
+}
+
+connectSpotify.addEventListener("click", () => void connectSpotifyPlayer());
+if (hasSpotifyAuthorizationCallback(window.location.search)) {
+  void connectSpotifyPlayer();
+}
 
 playSpotify.addEventListener("click", async () => {
   playSpotify.disabled = true;
@@ -177,7 +292,7 @@ spotifySearch.addEventListener("keydown", event => {
   }
 });
 
-toggleAutoDj.addEventListener("click", () => void toggleAutomaticDj());
+toggleAutoDj.addEventListener("click", () => void toggleGeminiDj());
 
 async function toggleAutomaticDj(): Promise<void> {
   if (isAutomaticDjEnabled) {
@@ -288,6 +403,141 @@ async function loadAutomaticBand(band: EnergyBand): Promise<void> {
   autoDjStatus.textContent = `Found ${automaticCandidates.length} tracks for ${query}`;
 }
 
+async function toggleGeminiDj(): Promise<void> {
+  if (isGeminiDjEnabled) {
+    isGeminiDjEnabled = false;
+    activeGeminiProvider = undefined;
+    geminiRetryAttempt = 0;
+    clearGeminiTrackTimer();
+    clearGeminiRetryTimer();
+    toggleAutoDj.textContent = "Start Gemini discovery DJ";
+    autoDjStatus.textContent = "Gemini discovery is off. Local stems remain available.";
+    return;
+  }
+  if (!localAudioWasStarted) {
+    autoDjStatus.textContent = "Starting fallback stems before Gemini discovers the first track…";
+    await startAudioOutput();
+    if (!localAudioWasStarted) {
+      autoDjStatus.textContent = "Fallback stems could not start, so Gemini discovery was not started.";
+      return;
+    }
+  }
+  isGeminiDjEnabled = true;
+  geminiRetryAttempt = 0;
+  geminiRecentTracks = [];
+  activeGeminiProvider = aiProvider.value as "spotify" | "youtube-music";
+  toggleAutoDj.textContent = "Stop Gemini discovery DJ";
+  await planAndPlayGeminiTrack("starting the set");
+}
+
+function geminiPreferences(): DjPreferences {
+  return {
+    provider: aiProvider.value as "spotify" | "youtube-music",
+    language: autoLanguage.value,
+    remixPreference: autoRemix.value as "avoid" | "allow" | "prefer",
+    brief: aiBrief.value.trim(),
+    allowExplicit: false,
+    excludedSongIdentities: geminiRecentTracks.map(track => `${track.title} — ${track.artist}`),
+  };
+}
+
+async function planAndPlayGeminiTrack(trigger: string): Promise<void> {
+  if (!isGeminiDjEnabled || isGeminiPlanning) return;
+  clearGeminiRetryTimer();
+  isGeminiPlanning = true;
+  autoDjStatus.textContent = `Local stems are bridging while Gemini plans the next song (${trigger})…`;
+  try {
+    const directive = await requestDjDirective(geminiPreferences());
+    djDecision.textContent = `Gemini direction: ${directive.vibe} — ${directive.reason}`;
+    const selected = await resolveAndPlayDirective(directive);
+    geminiRecentTracks = [...geminiRecentTracks, selected].slice(-12);
+    geminiRetryAttempt = 0;
+    scheduleGeminiTrackEnd(selected);
+    autoDjStatus.textContent = `Playing ${selected.title} — ${selected.artist}. Gemini selected it for ${directive.vibe}.`;
+  } catch (error) {
+    console.error(error);
+    const message = error instanceof Error ? error.message : "Could not find a playable Gemini suggestion.";
+    const retryAfterMilliseconds = error instanceof DjDirectiveRequestError ? error.retryAfterMilliseconds : undefined;
+    const delay = scheduleGeminiRetry(retryAfterMilliseconds);
+    const retryMessage = delay === undefined ? "" : ` Gemini will retry in ${Math.ceil(delay / 1_000)} seconds.`;
+    autoDjStatus.textContent = `${message} Local stems will continue.${retryMessage}`;
+  } finally {
+    isGeminiPlanning = false;
+  }
+}
+
+async function resolveAndPlayDirective(directive: DjDirective): Promise<ResolvedGeminiTrack> {
+  const provider = geminiPreferences().provider;
+  const failures: string[] = [];
+  for (const candidate of directive.candidates) {
+    if (geminiRecentTracks.some(track => sameIdentity(track.title, track.artist, candidate))) {
+      failures.push(`${candidate.title}: recently played`);
+      continue;
+    }
+    try {
+      if (provider === "spotify") {
+        const matches = await spotify.searchTracks(`track:${candidate.title} artist:${candidate.artist}`);
+        const match = matches.find(track => track.isPlayable && sameIdentity(track.title, track.artists.join(" "), candidate)) ?? matches.find(track => track.isPlayable);
+        if (match === undefined) continue;
+        await playSpotifyExclusively(match.uri);
+        activeGeminiProvider = provider;
+        return { ...candidate, durationMilliseconds: match.durationMilliseconds };
+      }
+
+      const matches = await youtubeMusic.searchTracks(`${candidate.title} ${candidate.artist}`);
+      const match = matches.find(track => sameIdentity(track.title, track.artists.join(" "), candidate)) ?? matches[0];
+      if (match === undefined) continue;
+      await playYoutubeMusicExclusively(match.videoId, candidate.startAtSeconds ?? undefined);
+      activeGeminiProvider = provider;
+      return { ...candidate, durationMilliseconds: match.durationMilliseconds };
+    } catch (error) {
+      console.warn(`Could not resolve ${candidate.title} by ${candidate.artist}`, error);
+      const reason = error instanceof Error ? error.message : "Unknown provider error";
+      failures.push(`${candidate.title}: ${reason}`);
+    }
+  }
+  const details = failures.slice(0, 2).join("; ");
+  throw new Error(`None of Gemini's song suggestions were playable through the selected provider.${details ? ` ${details}` : ""}`);
+}
+
+function scheduleGeminiTrackEnd(track: ResolvedGeminiTrack): void {
+  clearGeminiTrackTimer();
+  if (!isGeminiDjEnabled || activeGeminiProvider !== "spotify" || track.durationMilliseconds <= 0) {
+    return;
+  }
+  const waitMilliseconds = Math.max(1_000, track.durationMilliseconds + 1_500);
+  geminiTrackTimer = window.setTimeout(() => void continueGeminiDj("Spotify duration reached"), waitMilliseconds);
+}
+
+function clearGeminiTrackTimer(): void {
+  if (geminiTrackTimer !== undefined) {
+    window.clearTimeout(geminiTrackTimer);
+    geminiTrackTimer = undefined;
+  }
+}
+
+function scheduleGeminiRetry(serverDelayMilliseconds?: number): number | undefined {
+  clearGeminiRetryTimer();
+  if (!isGeminiDjEnabled || activeGeminiProvider === undefined) return undefined;
+  const exponentialDelay = Math.min(300_000, 8_000 * 2 ** Math.min(geminiRetryAttempt, 5));
+  const delay = Math.max(serverDelayMilliseconds ?? 0, exponentialDelay);
+  geminiRetryAttempt += 1;
+  geminiRetryTimer = window.setTimeout(() => void continueGeminiDj("retrying after a failed selection"), delay);
+  return delay;
+}
+
+function clearGeminiRetryTimer(): void {
+  if (geminiRetryTimer !== undefined) {
+    window.clearTimeout(geminiRetryTimer);
+    geminiRetryTimer = undefined;
+  }
+}
+
+function sameIdentity(title: string, artist: string, candidate: DjSongIdentity): boolean {
+  const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return normalize(title).includes(normalize(candidate.title)) && normalize(artist).includes(normalize(candidate.artist));
+}
+
 async function searchSpotifyTracks(): Promise<void> {
   searchSpotify.disabled = true;
   spotifyResults.replaceChildren();
@@ -356,15 +606,19 @@ async function playSpotifyTrack(uri: string): Promise<void> {
 async function playSpotifyExclusively(uri: string): Promise<void> {
   const shouldPauseYoutubeMusic = youtubeMusicOwnsAudio;
   if (shouldPauseYoutubeMusic) youtubeMusic.pause();
-  const shouldPauseLocalAudio = localAudioWasStarted && !spotifyOwnsAudio;
+  const shouldPauseAppleMusic = appleMusicOwnsAudio;
+  if (shouldPauseAppleMusic) await appleMusic.pause();
+  const shouldPauseLocalAudio = localAudioWasStarted && !spotifyOwnsAudio && !shouldPauseAppleMusic;
   if (shouldPauseLocalAudio) {
     await stemPack.pause();
   }
   try {
     await spotify.playTrack(uri);
     spotifyOwnsAudio = true;
+    appleMusicOwnsAudio = false;
     youtubeMusicOwnsAudio = false;
   } catch (error) {
+    if (shouldPauseAppleMusic) await appleMusic.playTrack(appleMusicSongId.value.trim());
     if (shouldPauseLocalAudio) {
       await stemPack.start();
     }
@@ -396,6 +650,8 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
 });
 
 connection.on("RoomClosed", () => {
+  clearGeminiTrackTimer();
+  clearGeminiRetryTimer();
   stemPack.stop();
   targetEnergy = 0;
   participantCount.textContent = "0";
@@ -432,10 +688,6 @@ function animateSpeaker(): void {
   speaker.style.setProperty("--room-energy", `${displayedEnergy}`);
   speaker.style.setProperty("--pulse-duration", `${Math.max(0.35, 1.2 - displayedEnergy * 0.8)}s`);
   energyValue.textContent = `${energyPercent}%`;
-  if (hostEnergy !== null) {
-    hostEnergy.textContent = `${energyPercent}%`;
-    hostEnergy.parentElement?.style.setProperty("--energy-width", `${energyPercent}%`);
-  }
   window.requestAnimationFrame(animateSpeaker);
 }
 
@@ -491,6 +743,10 @@ async function startAudioOutput(): Promise<void> {
     if (spotifyOwnsAudio) {
       await spotify.pause();
       spotifyOwnsAudio = false;
+    }
+    if (appleMusicOwnsAudio) {
+      await appleMusic.pause();
+      appleMusicOwnsAudio = false;
     }
     if (youtubeMusicOwnsAudio) {
       youtubeMusic.pause();
