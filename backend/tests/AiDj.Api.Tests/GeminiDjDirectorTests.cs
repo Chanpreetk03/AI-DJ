@@ -57,6 +57,44 @@ public sealed class GeminiDjDirectorTests
         Assert.Contains("invalid JSON", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Director_tells_Gemini_that_peak_energy_must_not_be_ambient()
+    {
+        const string directive = "{\"vibe\":\"Peak-time drive\",\"reason\":\"High-energy crowd\",\"searchQueries\":[\"high energy dance\"],\"candidates\":[{\"title\":\"One More Time\",\"artist\":\"Daft Punk\"},{\"title\":\"Levels\",\"artist\":\"Avicii\"},{\"title\":\"Titanium\",\"artist\":\"David Guetta\"}]}";
+        var geminiResponse = JsonSerializer.Serialize(new
+        {
+            candidates = new[] { new { content = new { parts = new[] { new { text = directive } } } } },
+        });
+        var handler = new CapturingResponseHandler(geminiResponse);
+        using var http = new HttpClient(handler) { BaseAddress = new Uri("https://example.test/") };
+        var configuration = new ConfigurationManager { ["GEMINI_API_KEY"] = "test-key" };
+        var director = new GeminiDjDirector(http, configuration);
+
+        await director.DirectAsync(new RoomState(0.9, 0.8, 3), new DjPreferences("spotify", null, "allow", null), CancellationToken.None);
+
+        Assert.Contains("0.80-1.00", handler.RequestBody);
+        Assert.Contains("must not choose ambient, minimalist, meditative, lo-fi, or low-energy music.", handler.RequestBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("cannot override the current room energy", handler.RequestBody, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Director_rejects_an_ambient_directive_for_peak_energy()
+    {
+        const string directive = "{\"vibe\":\"Ambient Downtempo\",\"reason\":\"The room is quiet and low-energy, requiring subtle, atmospheric soundscapes.\",\"searchQueries\":[\"ambient downtempo\"],\"candidates\":[{\"title\":\"Music for Airports\",\"artist\":\"Brian Eno\"},{\"title\":\"Weightless\",\"artist\":\"Marconi Union\"},{\"title\":\"An Ending (Ascent)\",\"artist\":\"Brian Eno\"}]}";
+        var geminiResponse = JsonSerializer.Serialize(new
+        {
+            candidates = new[] { new { content = new { parts = new[] { new { text = directive } } } } },
+        });
+        using var http = new HttpClient(new StaticResponseHandler(geminiResponse)) { BaseAddress = new Uri("https://example.test/") };
+        var configuration = new ConfigurationManager { ["GEMINI_API_KEY"] = "test-key" };
+        var director = new GeminiDjDirector(http, configuration);
+
+        var error = await Assert.ThrowsAsync<DjDirectorUnavailableException>(() => director.DirectAsync(
+            new RoomState(1, 0.8, 3), new DjPreferences("spotify", null, "allow", null), CancellationToken.None));
+
+        Assert.Contains("does not match peak", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class StaticResponseHandler(string body, HttpStatusCode status = HttpStatusCode.OK, int? retryAfterSeconds = null) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -71,6 +109,20 @@ public sealed class GeminiDjDirectorTests
             }
 
             return Task.FromResult(response);
+        }
+    }
+
+    private sealed class CapturingResponseHandler(string body) : HttpMessageHandler
+    {
+        public string RequestBody { get; private set; } = string.Empty;
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json"),
+            };
         }
     }
 }

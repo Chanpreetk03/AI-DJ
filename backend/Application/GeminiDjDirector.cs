@@ -79,6 +79,11 @@ public sealed class GeminiDjDirector(HttpClient http, IConfiguration configurati
                             "Return JSON only with: vibe (short string), reason (short string), searchQueries (1-4 identity searches), " +
                             "and candidates (3-6 objects with title, artist, optional version, optional startAtSeconds). " +
                             "Candidates must be plausible released recordings, diverse, and suitable for the current room; include alternatives in case a provider cannot resolve the first choice. " +
+                            "Treat room.energy as the musical energy contract: 0.00-0.19 is calm/ambient, 0.20-0.39 is warm and restrained, " +
+                            "0.40-0.59 is groove, 0.60-0.79 is active and rhythm-forward, and 0.80-1.00 is peak-time, driving, and dancefloor-focused. " +
+                            "For active and peak energy, candidates and the reason must not choose ambient, minimalist, meditative, lo-fi, or low-energy music. " +
+                            "The host brief may influence genre and language, but it cannot override the current room energy. " +
+                            "For peak energy, prefer assertive drums, bass, momentum, and a clearly energetic arrangement. " +
                             "Never suggest a recording listed in recentlyPlayed, including alternate punctuation or versions of the same song. " +
                             "Use startAtSeconds only when you are confident it is a useful non-zero intro skip; otherwise omit it.",
                     },
@@ -129,7 +134,27 @@ public sealed class GeminiDjDirector(HttpClient http, IConfiguration configurati
             throw new DjDirectorUnavailableException("Gemini returned an empty DJ direction.");
         }
 
-        return ParseDirective(text);
+        return ValidateEnergyAlignment(state, ParseDirective(text));
+    }
+
+    private static DjDirective ValidateEnergyAlignment(RoomState state, DjDirective directive)
+    {
+        if (state.Energy < 0.6)
+        {
+            return directive;
+        }
+
+        var direction = string.Join(' ', new[] { directive.Vibe, directive.Reason }
+            .Concat(directive.SearchQueries)
+            .Concat(directive.Candidates.Select(candidate => $"{candidate.Title} {candidate.Artist}")));
+        var lowEnergyTerms = new[] { "ambient", "downtempo", "minimalist", "meditative", "lo-fi", "lofi", "low-energy", "contemplative", "soundscape" };
+        if (!lowEnergyTerms.Any(term => direction.Contains(term, StringComparison.OrdinalIgnoreCase)))
+        {
+            return directive;
+        }
+
+        var band = state.Energy >= 0.8 ? "peak" : "active";
+        throw new DjDirectorUnavailableException($"Gemini direction does not match {band} room energy. Retrying shortly.");
     }
 
     private static DjDirective ParseDirective(string json)

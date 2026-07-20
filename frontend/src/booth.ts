@@ -1,4 +1,6 @@
 import { createConnection, joinRoom } from "./connection";
+import { announceCrowdDropArmed, announceCrowdDropStarted } from "./crowdDrop";
+import type { CrowdDropArmedEvent, CrowdDropStartedEvent } from "./protocol";
 import "./navigation";
 import "./styles.css";
 
@@ -8,9 +10,39 @@ const energyInput = document.querySelector<HTMLInputElement>("#booth-energy")!;
 const energyValue = document.querySelector<HTMLElement>("#booth-energy-value")!;
 const stateButtons = document.querySelectorAll<HTMLButtonElement>(".booth-state");
 const leaveButton = document.querySelector<HTMLButtonElement>("#booth-leave")!;
+const triggerCrowdDrop = document.querySelector<HTMLButtonElement>("#trigger-crowd-drop")!;
 const connection = createConnection();
 let energy = Number(energyInput.value);
 let sendTimer: number | undefined;
+
+connection.on("CrowdDropArmed", (drop: CrowdDropArmedEvent) => {
+  announceCrowdDropArmed(drop);
+  triggerCrowdDrop.disabled = true;
+  mode.textContent = "Crowd Drop armed · countdown is live";
+});
+
+connection.on("CrowdDropStarted", (drop: CrowdDropStartedEvent) => {
+  announceCrowdDropStarted(drop);
+  mode.textContent = `Crowd Drop live · ${drop.contributors} contributors`;
+  window.setTimeout(() => triggerCrowdDrop.disabled = false, 45_000);
+});
+
+triggerCrowdDrop.addEventListener("click", async () => {
+  if (connection.state !== "Connected") return;
+  triggerCrowdDrop.disabled = true;
+  const result = await connection.invoke<{ accepted: boolean; cooldownRemainingMilliseconds: number }>("TriggerCrowdDrop").catch(error => {
+    console.error(error);
+    return undefined;
+  });
+  if (result === undefined) {
+    mode.textContent = "Could not trigger Crowd Drop";
+    triggerCrowdDrop.disabled = false;
+  } else if (!result.accepted) {
+    const seconds = Math.ceil(result.cooldownRemainingMilliseconds / 1_000);
+    mode.textContent = `Crowd Drop cooling down · ${seconds}s`;
+    window.setTimeout(() => triggerCrowdDrop.disabled = false, result.cooldownRemainingMilliseconds);
+  }
+});
 
 energyInput.addEventListener("input", () => {
   energy = Number(energyInput.value);

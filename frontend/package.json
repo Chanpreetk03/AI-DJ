@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --experimental-strip-types --test src/musicSelection.test.ts src/spotifyPlayback.test.ts",
+    "test:unit": "node --experimental-strip-types --test src/musicSelection.test.ts src/spotifyPlayback.test.ts src/crowdDrop.test.ts src/geminiEnergyTransition.test.ts",
     "test:integration": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\tests\\api.integration.ps1"
   },
   "dependencies": {

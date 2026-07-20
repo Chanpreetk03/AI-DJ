@@ -4,8 +4,11 @@ import { hasSpotifyAuthorizationCallback, SpotifyPlaybackAdapter, type SpotifyTr
 import { YoutubeMusicPlaybackAdapter, type YoutubeMusicSearchResult } from "./youtubeMusicPlayback";
 import { MusicSelectionEngine, type EnergyBand, type TrackProfile } from "./musicSelection";
 import { DjDirectiveRequestError, requestDjDirective, type DjDirective, type DjPreferences, type DjSongIdentity } from "./geminiDj";
+import { GeminiEnergyTransitionGate, type GeminiEnergyTier } from "./geminiEnergyTransition";
 import { renderInviteQr } from "./inviteQr";
 import type { MusicParams, RoomState } from "./protocol";
+import type { CrowdDropArmedEvent, CrowdDropStartedEvent } from "./protocol";
+import { announceCrowdDropArmed, announceCrowdDropStarted, localizeCrowdDropCountdown } from "./crowdDrop";
 import "./navigation";
 import "./styles.css";
 
@@ -13,6 +16,8 @@ const status = document.querySelector<HTMLElement>("#status")!;
 const speaker = document.querySelector<HTMLElement>("#speaker")!;
 const speakerStage = document.querySelector<HTMLElement>(".speaker-stage")!;
 const energyValue = document.querySelector<HTMLElement>("#energy-value")!;
+const hostEnergy = document.querySelector<HTMLOutputElement>("#host-energy")!;
+const hostEnergyMeter = document.querySelector<HTMLElement>(".tape-energy-readout")!;
 const tempo = document.querySelector<HTMLElement>("#tempo")!;
 const layers = document.querySelector<HTMLElement>("#layers")!;
 const participantCount = document.querySelector<HTMLElement>("#participant-count")!;
@@ -155,6 +160,10 @@ let geminiTrackTimer: number | undefined;
 let geminiRetryTimer: number | undefined;
 let geminiRetryAttempt = 0;
 let geminiRecentTracks: DjSongIdentity[] = [];
+let geminiPlanVersion = 0;
+let geminiReplanTimer: number | undefined;
+let geminiReplanPending = false;
+const geminiEnergyTransition = new GeminiEnergyTransitionGate();
 
 type ResolvedGeminiTrack = DjSongIdentity & {
   durationMilliseconds: number;
@@ -412,10 +421,13 @@ async function loadAutomaticBand(band: EnergyBand): Promise<void> {
 async function toggleGeminiDj(): Promise<void> {
   if (isGeminiDjEnabled) {
     isGeminiDjEnabled = false;
+    geminiPlanVersion += 1;
     activeGeminiProvider = undefined;
     geminiRetryAttempt = 0;
     clearGeminiTrackTimer();
     clearGeminiRetryTimer();
+    clearGeminiReplanTimer();
+    geminiReplanPending = false;
     toggleAutoDj.textContent = "Start Gemini discovery DJ";
     autoDjStatus.textContent = "Gemini discovery is off. Local stems remain available.";
     return;
@@ -451,11 +463,15 @@ async function planAndPlayGeminiTrack(trigger: string): Promise<void> {
   if (!isGeminiDjEnabled || isGeminiPlanning) return;
   clearGeminiRetryTimer();
   isGeminiPlanning = true;
+  const planVersion = geminiPlanVersion;
+  geminiEnergyTransition.setCurrentTier(geminiEnergyTier(targetEnergy));
   autoDjStatus.textContent = `Local stems are bridging while Gemini plans the next song (${trigger})…`;
   try {
     const directive = await requestDjDirective(geminiPreferences());
+    if (!isCurrentGeminiPlan(planVersion)) return;
     djDecision.textContent = `Gemini direction: ${directive.vibe} — ${directive.reason}`;
-    const selected = await resolveAndPlayDirective(directive);
+    const selected = await resolveAndPlayDirective(directive, planVersion);
+    if (selected === undefined || !isCurrentGeminiPlan(planVersion)) return;
     geminiRecentTracks = [...geminiRecentTracks, selected].slice(-12);
     geminiRetryAttempt = 0;
     scheduleGeminiTrackEnd(selected);
@@ -469,13 +485,15 @@ async function planAndPlayGeminiTrack(trigger: string): Promise<void> {
     autoDjStatus.textContent = `${message} Local stems will continue.${retryMessage}`;
   } finally {
     isGeminiPlanning = false;
+    if (geminiReplanPending) void flushGeminiEnergyReplan();
   }
 }
 
-async function resolveAndPlayDirective(directive: DjDirective): Promise<ResolvedGeminiTrack> {
+async function resolveAndPlayDirective(directive: DjDirective, planVersion: number): Promise<ResolvedGeminiTrack | undefined> {
   const provider = geminiPreferences().provider;
   const failures: string[] = [];
   for (const candidate of directive.candidates) {
+    if (!isCurrentGeminiPlan(planVersion)) return undefined;
     if (geminiRecentTracks.some(track => sameIdentity(track.title, track.artist, candidate))) {
       failures.push(`${candidate.title}: recently played`);
       continue;
@@ -483,6 +501,7 @@ async function resolveAndPlayDirective(directive: DjDirective): Promise<Resolved
     try {
       if (provider === "spotify") {
         const matches = await spotify.searchTracks(`track:${candidate.title} artist:${candidate.artist}`);
+        if (!isCurrentGeminiPlan(planVersion)) return undefined;
         const match = matches.find(track => track.isPlayable && sameIdentity(track.title, track.artists.join(" "), candidate)) ?? matches.find(track => track.isPlayable);
         if (match === undefined) continue;
         await playSpotifyExclusively(match.uri);
@@ -491,6 +510,7 @@ async function resolveAndPlayDirective(directive: DjDirective): Promise<Resolved
       }
 
       const matches = await youtubeMusic.searchTracks(`${candidate.title} ${candidate.artist}`);
+      if (!isCurrentGeminiPlan(planVersion)) return undefined;
       const match = matches.find(track => sameIdentity(track.title, track.artists.join(" "), candidate)) ?? matches[0];
       if (match === undefined) continue;
       await playYoutubeMusicExclusively(match.videoId, candidate.startAtSeconds ?? undefined);
@@ -504,6 +524,45 @@ async function resolveAndPlayDirective(directive: DjDirective): Promise<Resolved
   }
   const details = failures.slice(0, 2).join("; ");
   throw new Error(`None of Gemini's song suggestions were playable through the selected provider.${details ? ` ${details}` : ""}`);
+}
+
+function isCurrentGeminiPlan(planVersion: number): boolean {
+  return isGeminiDjEnabled && planVersion === geminiPlanVersion;
+}
+
+function geminiEnergyTier(energy: number): GeminiEnergyTier {
+  return energy >= .7 ? "high" : "low";
+}
+
+function queueGeminiEnergyReplan(): void {
+  if (geminiReplanPending) {
+    clearGeminiReplanTimer();
+  } else {
+    geminiReplanPending = true;
+    geminiPlanVersion += 1;
+  }
+  geminiReplanTimer = window.setTimeout(() => void flushGeminiEnergyReplan(), 900);
+}
+
+function clearGeminiReplanTimer(): void {
+  if (geminiReplanTimer !== undefined) {
+    window.clearTimeout(geminiReplanTimer);
+    geminiReplanTimer = undefined;
+  }
+}
+
+async function flushGeminiEnergyReplan(): Promise<void> {
+  clearGeminiReplanTimer();
+  if (!isGeminiDjEnabled || !geminiReplanPending || isGeminiPlanning) return;
+  geminiReplanPending = false;
+  clearGeminiTrackTimer();
+  clearGeminiRetryTimer();
+  if (spotifyOwnsAudio) await spotify.pause();
+  if (youtubeMusicOwnsAudio) youtubeMusic.pause();
+  spotifyOwnsAudio = false;
+  youtubeMusicOwnsAudio = false;
+  if (localAudioWasStarted) await stemPack.start();
+  await planAndPlayGeminiTrack(`room energy moved to ${musicSelectionEngine.energyBand(targetEnergy)}`);
 }
 
 function scheduleGeminiTrackEnd(track: ResolvedGeminiTrack): void {
@@ -647,8 +706,35 @@ connection.on("MusicParamsUpdated", (params: MusicParams) => {
 connection.on("RoomStateUpdated", (state: RoomState) => {
   participantCount.textContent = `${state.activeClients}`;
   targetEnergy = state.energy;
+  hostEnergy.value = `${Math.round(state.energy * 100)}%`;
+  hostEnergyMeter.style.setProperty("--energy-width", `${Math.round(state.energy * 100)}%`);
   stemPack.setRoomState(state);
+  const nextTier = geminiEnergyTransition.observe({
+    energy: state.energy,
+    activeClients: state.activeClients,
+    nowMilliseconds: Date.now(),
+  });
+  if (isGeminiDjEnabled && nextTier !== undefined) {
+    queueGeminiEnergyReplan();
+  }
   void maybeSelectAutomaticTrack();
+});
+
+connection.on("CrowdDropArmed", (drop: CrowdDropArmedEvent) => {
+  const localDrop = localizeCrowdDropCountdown(drop);
+  announceCrowdDropArmed(localDrop);
+  if (!stemPack.armCrowdDrop(localDrop, startsAtMilliseconds => {
+    void connection.invoke("ConfirmCrowdDropStarted", localDrop.id, startsAtMilliseconds);
+  })) {
+    djDecision.textContent = "Crowd Drop visuals are live. Spotify and YouTube playback cannot expose local stems for the musical burst.";
+    window.setTimeout(() => {
+      void connection.invoke("ConfirmCrowdDropStarted", localDrop.id, Date.now());
+    }, localDrop.countdownDurationMilliseconds);
+  }
+});
+
+connection.on("CrowdDropStarted", (drop: CrowdDropStartedEvent) => {
+  announceCrowdDropStarted(drop);
 });
 
 connection.on("RoomClosed", () => {
@@ -778,7 +864,9 @@ startAudio.addEventListener("click", () => void startAudioOutput());
 holdDirection.addEventListener("click", () => {
   directionHeld = !directionHeld;
   stemPack.setHoldSelection(directionHeld);
-  holdDirection.textContent = directionHeld ? "Resume AI direction" : "Hold current direction";
+  holdDirection.setAttribute("aria-pressed", String(directionHeld));
+  holdDirection.setAttribute("aria-label", directionHeld ? "Resume AI direction" : "Hold AI direction");
+  holdDirection.title = directionHeld ? "Resume AI direction" : "Hold AI direction";
 });
 
 endSession.addEventListener("click", async () => {
@@ -812,6 +900,9 @@ async function connect(): Promise<void> {
     status.textContent = "Connected - waiting for the room";
   } catch (error) {
     console.error(error);
-    status.textContent = "Output server unavailable";
+    const message = error instanceof Error ? error.message : "";
+    status.textContent = message.includes("room has ended") || message.includes("room does not exist")
+      ? "This room has ended. Start a new room or open a current invite."
+      : "Output server unavailable";
   }
 }

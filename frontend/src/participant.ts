@@ -1,6 +1,8 @@
 import { createConnection, joinRoom } from "./connection";
 import type { VibeVector } from "./protocol";
+import type { CrowdDropArmedEvent, CrowdDropStartedEvent } from "./protocol";
 import { combineMotionSignals, FrameDifferenceSensor, MicrophoneFeatureSensor, PhoneMotionSensor } from "./sensing";
+import { announceCrowdDropArmed, announceCrowdDropStarted, pulseDeviceForCrowdDrop, vibrateThroughCrowdDrop } from "./crowdDrop";
 import "./navigation";
 import "./styles.css";
 
@@ -60,6 +62,14 @@ joinButton.addEventListener("click", async () => {
 
     const connection = createConnection();
     participantConnection = connection;
+    connection.on("CrowdDropArmed", (drop: CrowdDropArmedEvent) => {
+      announceCrowdDropArmed(drop);
+      pulseDeviceForCrowdDrop();
+    });
+    connection.on("CrowdDropStarted", (drop: CrowdDropStartedEvent) => {
+      announceCrowdDropStarted(drop);
+      vibrateThroughCrowdDrop();
+    });
     connection.onreconnecting(() => {
       status.textContent = "Connection interrupted — reconnecting…";
       contribution.textContent = "Paused until the room connection returns";

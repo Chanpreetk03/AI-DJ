@@ -3,6 +3,8 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { PointerEvent } from "react";
 import type { SceneVariant } from "./scene/AdaptiveScene";
+import { countdownSeconds, crowdDropArmedEventName, crowdDropStartedEventName, localizeCrowdDropCountdown } from "../crowdDrop";
+import type { CrowdDropArmedEvent, CrowdDropStartedEvent } from "../protocol";
 
 const AdaptiveScene = lazy(() => import("./scene/AdaptiveScene"));
 
@@ -88,11 +90,11 @@ function LandingRecord(): ReactElement {
 }
 
 function OutputPage(): ReactElement {
-  return <div className="tape-app"><DesktopScene variant="output" /><Navigation current="output" /><PageMotion className="tape-console">
+  return <div className="tape-app"><DesktopScene variant="output" /><CrowdDropOverlay role="host" /><Navigation current="output" /><PageMotion className="tape-console">
     <header className="tape-console-head"><span>HUMAN + MACHINE SET</span><p id="status" className="status">Connecting…</p><button id="invite-button" className="tape-text-button" type="button">Invite the room ↗</button></header>
     <section className="tape-host-grid">
       <aside className="tape-arc-panel"><p className="eyebrow">SET / LIVE</p><h1>THE<br /><em>ARC.</em></h1><p className="tape-copy">A musical story that reacts to the people in the room—not a playlist that shuffles.</p><div className="arc-meter" aria-hidden="true"><i /><i /><i /><i /><i /></div><div className="tape-stat-stack"><div><span>TEMPO</span><strong id="tempo">92 BPM</strong></div><div><span>PEOPLE</span><strong id="participant-count">0</strong></div><div><span>LAYERS</span><strong id="layers">1 / 4</strong></div></div></aside>
-      <section className="tape-deck-panel" aria-label="AI-DJ live deck"><section className="speaker-stage tape-record-stage" aria-label="Room energy visualizer"><div className="stage-grid" aria-hidden="true" /><div className="orbit orbit-one" aria-hidden="true" /><div className="orbit orbit-two" aria-hidden="true" /><div className="speaker-glow" aria-hidden="true" /><div className="speaker" id="speaker" aria-hidden="true"><div className="speaker-tweeter" /><div className="speaker-cone speaker-cone-large" /><div className="speaker-cone speaker-cone-small" /></div><div className="speaker-energy"><span id="energy-value">0%</span><small>ROOM ENERGY</small></div></section><p className="deck-kicker">PLAYING INTO THE ROOM</p><h2 className="deck-title">Crowd-reactive<br /><em>AI—DJ</em></h2><div className="equalizer tape-equalizer" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="deck-actions"><button id="hold-direction" className="deck-icon-button" type="button" aria-label="Hold current direction">◖</button><button id="start-audio" className="deck-play-button" type="button">▶</button><button id="end-session" className="deck-icon-button" type="button" disabled aria-label="End this session">■</button></div><p className="deck-hint">Start audio once, then let the room shape the set.</p></section>
+      <section className="tape-deck-panel" aria-label="AI-DJ live deck"><section className="speaker-stage tape-record-stage" aria-label="Room energy visualizer"><div className="stage-grid" aria-hidden="true" /><div className="orbit orbit-one" aria-hidden="true" /><div className="orbit orbit-two" aria-hidden="true" /><div className="speaker-glow" aria-hidden="true" /><div className="speaker" id="speaker" aria-hidden="true"><div className="speaker-tweeter" /><div className="speaker-cone speaker-cone-large" /><div className="speaker-cone speaker-cone-small" /></div><div className="speaker-energy"><span id="energy-value">0%</span><small>ROOM ENERGY</small></div></section><p className="deck-kicker">PLAYING INTO THE ROOM</p><h2 className="deck-title">Crowd-reactive<br /><em>AI—DJ</em></h2><div className="equalizer tape-equalizer" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /><i /><i /></div><div className="deck-actions"><button id="hold-direction" className="deck-icon-button" type="button" aria-label="Hold AI direction" aria-pressed="false" title="Hold AI direction"><svg className="deck-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 10V7.5a4.5 4.5 0 0 1 9 0V10" /><rect x="5" y="10" width="14" height="10" rx="2" /></svg></button><button id="start-audio" className="deck-play-button" type="button" aria-label="Start audio output" title="Start audio output"><svg className="deck-control-icon" viewBox="0 0 24 24" aria-hidden="true"><path className="deck-play-shape" d="m8 5 11 7-11 7Z" /></svg></button><button id="end-session" className="deck-icon-button" type="button" disabled aria-label="End this session" title="End this session"><svg className="deck-control-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" /></svg></button></div><p className="deck-hint">Start audio once, then let the room shape the set.</p></section>
       <aside className="tape-next-panel"><p className="eyebrow">DJ INTENT</p><strong id="dj-intent" className="intent-readout">Warmup · waiting for a room signal</strong><section className="next-card"><span>THE AI IS PREPARING</span><p id="dj-decision">Listening for the next musical moment.</p></section><label className="tape-energy-readout">ROOM ENERGY <output id="host-energy">0%</output><span><i /></span></label><a className="tape-link" href="/booth.html">Open booth controller →</a></aside>
     </section><MusicSources />
   </PageMotion><InviteModal /></div>;
@@ -110,7 +112,7 @@ function InviteModal(): ReactElement {
 }
 
 function ParticipantPage(): ReactElement {
-  return <div className="tape-app participant-app"><Navigation current="participant" /><PageMotion className="participant-deck">
+  return <div className="tape-app participant-app"><CrowdDropOverlay role="participant" /><Navigation current="participant" /><PageMotion className="participant-deck">
     <section className="participant-signal-stage" aria-label="Your private live signal">
       <div className="signal-pod-topline"><span>YOUR SIGNAL</span><i>LOCAL ONLY</i></div>
       <div className="signal-radar" aria-hidden="true"><i /><i /><i /></div>
@@ -125,7 +127,50 @@ function ParticipantPage(): ReactElement {
 
 function BoothPage(): ReactElement {
   const states = [["Quiet", .08], ["Warm", .35], ["Active", .68], ["Peak", 1], ["Cool", .16]] as const;
-  return <div className="tape-app"><DesktopScene variant="booth" /><Navigation current="booth" /><PageMotion className="booth-deck"><header><p className="eyebrow">FALLBACK / BOOTH DEVICE</p><h1>CONTROL<br /><em>THE ARC.</em></h1><p id="booth-status" className="status">Connecting…</p></header><section className="booth-mixer" aria-labelledby="booth-state-title"><div><span>REHEARSAL INPUT</span><h2 id="booth-state-title">Choose the energy.</h2></div><div className="booth-state-grid">{states.map(([label, energy]) => <button key={label} className="button secondary booth-state" data-energy={energy} type="button">{label}</button>)}</div><label className="booth-slider" htmlFor="booth-energy"><span>MANUAL ENERGY <strong id="booth-energy-value">8%</strong></span><input id="booth-energy" type="range" min="0" max="1" step="0.01" defaultValue="0.08" /></label><p id="booth-mode" className="rehearsal-status">Waiting for connection</p></section><footer className="booth-footer"><button id="booth-leave" className="tape-text-button" type="button">Leave room</button><a className="tape-link" href="/output.html">Back to live deck →</a></footer></PageMotion></div>;
+  return <div className="tape-app"><DesktopScene variant="booth" /><CrowdDropOverlay role="booth" /><Navigation current="booth" /><PageMotion className="booth-deck"><header><p className="eyebrow">FALLBACK / BOOTH DEVICE</p><h1>CONTROL<br /><em>THE ARC.</em></h1><p id="booth-status" className="status">Connecting…</p></header><section className="booth-mixer" aria-labelledby="booth-state-title"><div><span>REHEARSAL INPUT</span><h2 id="booth-state-title">Choose the energy.</h2></div><div className="booth-state-grid">{states.map(([label, energy]) => <button key={label} className="button secondary booth-state" data-energy={energy} type="button">{label}</button>)}</div><label className="booth-slider" htmlFor="booth-energy"><span>MANUAL ENERGY <strong id="booth-energy-value">8%</strong></span><input id="booth-energy" type="range" min="0" max="1" step="0.01" defaultValue="0.08" /></label><button id="trigger-crowd-drop" className="button booth-drop-button" type="button">UNLOCK CROWD DROP</button><p id="booth-mode" className="rehearsal-status">Waiting for connection</p></section><footer className="booth-footer"><button id="booth-leave" className="tape-text-button" type="button">Leave room</button><a className="tape-link" href="/output.html">Back to live deck →</a></footer></PageMotion></div>;
+}
+
+function CrowdDropOverlay({ role }: { role: "host" | "participant" | "booth" }): ReactElement {
+  const [armed, setArmed] = useState<CrowdDropArmedEvent | null>(null);
+  const [started, setStarted] = useState<CrowdDropStartedEvent | null>(null);
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const onArmed = (event: Event): void => {
+      const drop = localizeCrowdDropCountdown((event as CustomEvent<CrowdDropArmedEvent>).detail);
+      setSeconds(countdownSeconds(drop.countdownEndsAtMilliseconds));
+      setArmed(drop);
+      setStarted(null);
+    };
+    const onStarted = (event: Event): void => {
+      setStarted((event as CustomEvent<CrowdDropStartedEvent>).detail);
+      setArmed(null);
+      document.documentElement.classList.add("crowd-drop-active");
+      window.setTimeout(() => document.documentElement.classList.remove("crowd-drop-active"), 8_000);
+      window.setTimeout(() => setStarted(null), 8_000);
+    };
+    window.addEventListener(crowdDropArmedEventName, onArmed);
+    window.addEventListener(crowdDropStartedEventName, onStarted);
+    return () => {
+      window.removeEventListener(crowdDropArmedEventName, onArmed);
+      window.removeEventListener(crowdDropStartedEventName, onStarted);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (armed === null) return;
+    const update = (): void => setSeconds(countdownSeconds(armed.countdownEndsAtMilliseconds));
+    update();
+    const timer = window.setInterval(update, 100);
+    return () => window.clearInterval(timer);
+  }, [armed]);
+
+  if (armed !== null) {
+    const waitingForPhrase = seconds === 0;
+    return <aside className={`crowd-drop-overlay crowd-drop-armed ${role}`} role="status" aria-live="assertive"><span>THE ROOM UNLOCKED A DROP.</span><strong className={waitingForPhrase ? "crowd-drop-phrase" : undefined}>{waitingForPhrase ? "DROP INCOMING" : seconds}</strong><small>{waitingForPhrase ? "LOCKED TO THE NEXT PHRASE" : role === "participant" ? "GET READY" : "COUNTDOWN"}</small></aside>;
+  }
+  if (started !== null) return <aside className={`crowd-drop-overlay crowd-drop-started ${role}`} role="status" aria-live="assertive"><span>DROP UNLOCKED</span><strong>{started.contributors} PEOPLE</strong><small>Triggered by {started.contributors} people · {Math.round(started.energy * 100)}% energy · {Math.round(started.coherence * 100)}% coherence</small></aside>;
+  return <></>;
 }
 
 function FallbackPage(): ReactElement {

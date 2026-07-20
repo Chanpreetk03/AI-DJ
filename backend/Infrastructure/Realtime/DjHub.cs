@@ -52,6 +52,41 @@ public sealed class DjHub(RoomRegistry rooms, RoomAccessService access) : Hub
         await Clients.Group(RoleGroup(membership.RoomId, "output")).SendAsync("VibeVectorUpdated", snapshot.Vibe);
         await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("RoomStateUpdated", snapshot.State);
         await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("StatusUpdated", membership.Room.GetStatus());
+        if (snapshot.CrowdDrop is not null)
+        {
+            await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("CrowdDropArmed", snapshot.CrowdDrop);
+        }
+    }
+
+    public async Task<object> TriggerCrowdDrop()
+    {
+        if (!rooms.TryGetMembership(Context.ConnectionId, out var membership) || membership.Role != "booth")
+        {
+            throw new HubException("Only the Booth controller can manually trigger a Crowd Drop.");
+        }
+
+        var drop = membership.Room.TryTriggerManualCrowdDrop();
+        if (drop is null)
+        {
+            return new { accepted = false, cooldownRemainingMilliseconds = membership.Room.CrowdDropCooldownRemainingMilliseconds() };
+        }
+
+        await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("CrowdDropArmed", drop);
+        return new { accepted = true, cooldownRemainingMilliseconds = 45_000 };
+    }
+
+    public async Task ConfirmCrowdDropStarted(string dropId, long startsAtMilliseconds)
+    {
+        if (!rooms.TryGetMembership(Context.ConnectionId, out var membership) || membership.Role != "output")
+        {
+            throw new HubException("Only the active output can confirm a Crowd Drop start.");
+        }
+
+        var started = membership.Room.TryStartCrowdDrop(dropId, startsAtMilliseconds);
+        if (started is not null)
+        {
+            await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("CrowdDropStarted", started);
+        }
     }
 
     public async Task Leave()

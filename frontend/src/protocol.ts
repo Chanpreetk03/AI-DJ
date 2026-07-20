@@ -35,3 +35,19 @@ export type DemoStatus = {
   latestVibe: VibeVector | null;
   latestVibeAgeMilliseconds: number | null;
 };
+
+export type CrowdDropSource = "automatic" | "manual";
+
+export type CrowdDropArmedEvent = {
+  id: string;
+  source: CrowdDropSource;
+  contributors: number;
+  energy: number;
+  coherence: number;
+  countdownEndsAtMilliseconds: number;
+  countdownDurationMilliseconds: number;
+};
+
+export type CrowdDropStartedEvent = Omit<CrowdDropArmedEvent, "countdownEndsAtMilliseconds" | "countdownDurationMilliseconds"> & {
+  startsAtMilliseconds: number;
+};

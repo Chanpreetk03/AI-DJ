@@ -45,6 +45,9 @@ jspm_packages/
 **/bin/
 **/obj/
 
+# Isolated local output used by backend test runs.
+.test-output/
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 

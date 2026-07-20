@@ -3,6 +3,7 @@ import { decideTrack } from "./djDecision";
 import { CrowdIntentTracker, describeIntent, type CrowdIntent } from "./djIntent";
 import { readFeedback, recordFeedback } from "./djFeedback";
 import { analyzeTrack, normalizeProfiles, type MeasuredTrackProfile, type MusicSection } from "./musicAnalysis";
+import type { CrowdDropArmedEvent } from "./protocol";
 
 export type MusicSelection = "auto" | string;
 
@@ -85,6 +86,8 @@ export class RealMusicDecks {
   private lastSwitchAt = 0;
   private pendingTrack: TrackId | undefined;
   private holdSelection = false;
+  private crowdDropStartsAt: number | undefined;
+  private crowdDropEndsAt: number | undefined;
   private readonly playHistory: TrackId[] = [];
   private readonly intentTracker = new CrowdIntentTracker();
   private intent: CrowdIntent = { label: "warmup", intensity: 0, rhythmicDemand: 0, stability: 1, confidence: 0, trend: 0 };
@@ -177,6 +180,40 @@ export class RealMusicDecks {
     if (!hold) void this.considerTrackChange(true);
   }
 
+  public supportsCrowdDrop(): boolean {
+    return this.isStarted && this.activeDeck?.stemGains !== undefined;
+  }
+
+  public armCrowdDrop(drop: CrowdDropArmedEvent, onStarted: (startsAtMilliseconds: number) => void): boolean {
+    if (!this.supportsCrowdDrop() || this.activeDeck === undefined) {
+      return false;
+    }
+
+    const deck = this.activeDeck;
+    const now = this.context.currentTime;
+    const countdownRemainingSeconds = Math.max(0.05, (drop.countdownEndsAtMilliseconds - Date.now()) / 1_000);
+    const earliestStart = now + countdownRemainingSeconds;
+    const phraseSeconds = deck.track.profile?.phraseSeconds ?? 16;
+    const phrasesElapsed = Math.max(0, Math.ceil((earliestStart - deck.startedAt) / phraseSeconds));
+    const startsAt = Math.max(deck.startedAt + phrasesElapsed * phraseSeconds, earliestStart);
+    const endsAt = startsAt + phraseSeconds;
+    this.crowdDropStartsAt = startsAt;
+    this.crowdDropEndsAt = endsAt;
+    this.applyStemMix(deck);
+
+    window.setTimeout(() => {
+      if (this.crowdDropStartsAt !== startsAt || !this.isStarted) return;
+      onStarted(Date.now());
+    }, Math.max(0, (startsAt - this.context.currentTime) * 1_000));
+    window.setTimeout(() => {
+      if (this.crowdDropEndsAt !== endsAt) return;
+      this.crowdDropStartsAt = undefined;
+      this.crowdDropEndsAt = undefined;
+      this.applyMix();
+    }, Math.max(0, (endsAt - this.context.currentTime) * 1_000));
+    return true;
+  }
+
   public stop(): void {
     if (!this.isInitialized) {
       return;
@@ -189,6 +226,8 @@ export class RealMusicDecks {
     this.activeDeck = undefined;
     this.scheduledTrack = undefined;
     this.pendingTrack = undefined;
+    this.crowdDropStartsAt = undefined;
+    this.crowdDropEndsAt = undefined;
     this.isStarted = false;
   }
 
@@ -341,6 +380,13 @@ export class RealMusicDecks {
       return { track, reason: `Host selected ${track.title}.` };
     }
 
+    // Crowd Drop is the primary local-show moment, so keep the bundled stem pack
+    // under the local deck whenever the host has not explicitly selected a track.
+    const defaultStemPack = this.tracks["glitch-stairs"];
+    if (defaultStemPack !== undefined) {
+      return { track: defaultStemPack, reason: "Local stem pack selected for crowd-reactive mixing and Crowd Drop." };
+    }
+
     const decision = decideTrack(this.intent,
       Object.values(this.tracks)
         .map(track => ({ id: track.id, title: track.title, key: track.key, profile: track.profile! })),
@@ -486,6 +532,10 @@ export class RealMusicDecks {
     }
 
     const now = this.context.currentTime;
+    if (deck === this.activeDeck && this.crowdDropStartsAt !== undefined && this.crowdDropEndsAt !== undefined && this.crowdDropEndsAt > now) {
+      this.applyCrowdDropMix(deck, now);
+      return;
+    }
     const recovery = this.intent.label === "recovery";
     const lift = this.intent.label === "lift" || this.intent.label === "peak";
     const targets: Record<StemId, number> = {
@@ -498,6 +548,22 @@ export class RealMusicDecks {
     for (const [stemId, stemGain] of deck.stemGains) {
       stemGain.gain.cancelScheduledValues(now);
       stemGain.gain.linearRampToValueAtTime(targets[stemId], now + 0.5);
+    }
+  }
+
+  private applyCrowdDropMix(deck: Deck, now: number): void {
+    const startsAt = this.crowdDropStartsAt!;
+    const targets: Record<StemId, number> = {
+      drums: .92,
+      bass: .74,
+      harmony: .28,
+      flute: .24,
+      melody: .38,
+    };
+    for (const [stemId, stemGain] of deck.stemGains!) {
+      stemGain.gain.cancelScheduledValues(now);
+      stemGain.gain.setValueAtTime(stemGain.gain.value, now);
+      stemGain.gain.linearRampToValueAtTime(targets[stemId], startsAt + .12);
     }
   }
 

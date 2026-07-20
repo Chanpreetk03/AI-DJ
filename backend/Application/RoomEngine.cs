@@ -4,6 +4,7 @@ namespace AiDj.Api.Application;
 
 public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapper)
 {
+    private readonly CrowdDropController crowdDrop = new();
     private readonly object sync = new();
     private readonly Dictionary<string, string> connectionRoles = new();
     private VibeVector? latestVibe;
@@ -57,7 +58,7 @@ public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapp
         }
     }
 
-    public (VibeVector Vibe, RoomState State, MusicParams Parameters) AcceptVibe(string clientId, VibeVector vibe)
+    public (VibeVector Vibe, RoomState State, MusicParams Parameters, CrowdDropEvent? CrowdDrop) AcceptVibe(string clientId, VibeVector vibe)
     {
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         aggregator.Ingest(clientId, vibe, now);
@@ -69,7 +70,36 @@ public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapp
             latestSource = connectionRoles.GetValueOrDefault(clientId, "unknown");
             latestVibeAt = now;
         }
-        return (vibe, state, mapper.Map(state));
+        lock (sync)
+        {
+            return (vibe, state, mapper.Map(state), crowdDrop.Observe(state, now));
+        }
+    }
+
+    public CrowdDropEvent? TryTriggerManualCrowdDrop()
+    {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var state = aggregator.GetState(now);
+        lock (sync)
+        {
+            return crowdDrop.TryManualTrigger(state, now);
+        }
+    }
+
+    public CrowdDropStartedEvent? TryStartCrowdDrop(string dropId, long startsAtMilliseconds)
+    {
+        lock (sync)
+        {
+            return crowdDrop.TryStart(dropId, startsAtMilliseconds);
+        }
+    }
+
+    public long CrowdDropCooldownRemainingMilliseconds()
+    {
+        lock (sync)
+        {
+            return crowdDrop.RemainingCooldownMilliseconds(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        }
     }
 
     public (RoomState State, MusicParams Parameters) GetSnapshot()

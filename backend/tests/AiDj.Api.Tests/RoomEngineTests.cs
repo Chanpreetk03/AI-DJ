@@ -165,5 +165,36 @@ public sealed class RoomEngineTests
         Assert.InRange(state.Energy, 0.07, 0.09);
     }
 
+    [Fact]
+    public void Crowd_drop_requires_sustained_high_energy_coherence_and_contributors()
+    {
+        var drops = new CrowdDropController();
+        var qualifying = new RoomState(0.75, 0.70, 3);
+
+        Assert.Null(drops.Observe(qualifying, 1_000));
+        Assert.Null(drops.Observe(qualifying, 4_999));
+
+        var drop = drops.Observe(qualifying, 5_000);
+
+        Assert.NotNull(drop);
+        Assert.Equal("automatic", drop.Source);
+        Assert.Equal(3, drop.Contributors);
+        Assert.Equal(8_000, drop.CountdownEndsAtMilliseconds);
+    }
+
+    [Fact]
+    public void Crowd_drop_manual_trigger_bypasses_gates_but_honors_cooldown()
+    {
+        var drops = new CrowdDropController();
+        var quiet = new RoomState(0.05, 0.1, 1);
+
+        var first = drops.TryManualTrigger(quiet, 1_000);
+
+        Assert.NotNull(first);
+        Assert.Equal("manual", first.Source);
+        Assert.Null(drops.TryManualTrigger(quiet, 45_999));
+        Assert.NotNull(drops.TryManualTrigger(quiet, 46_000));
+    }
+
     private static VibeVector Vibe(double energy) => new(energy, energy, energy, energy * 4, 1_000);
 }
