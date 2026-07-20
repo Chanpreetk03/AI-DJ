@@ -184,8 +184,8 @@ export class RealMusicDecks {
     return this.isStarted && this.activeDeck?.stemGains !== undefined;
   }
 
-  public armCrowdDrop(drop: CrowdDropArmedEvent, onStarted: (startsAtMilliseconds: number) => void): boolean {
-    if (!this.supportsCrowdDrop() || this.activeDeck === undefined) {
+  public armCrowdDrop(drop: CrowdDropArmedEvent, onStarted: (startsAtMilliseconds: number) => void, overlayOnly = false): boolean {
+    if (!this.supportsCrowdDrop() || this.activeDeck === undefined || this.context.state !== "running") {
       return false;
     }
 
@@ -199,6 +199,12 @@ export class RealMusicDecks {
     const endsAt = startsAt + phraseSeconds;
     this.crowdDropStartsAt = startsAt;
     this.crowdDropEndsAt = endsAt;
+    if (overlayOnly) {
+      deck.gain.gain.cancelScheduledValues(now);
+      deck.gain.gain.setValueAtTime(0.001, now);
+      deck.gain.gain.linearRampToValueAtTime(.42, startsAt + .12);
+      deck.gain.gain.linearRampToValueAtTime(0.001, endsAt + .35);
+    }
     this.applyStemMix(deck);
 
     window.setTimeout(() => {
@@ -209,9 +215,25 @@ export class RealMusicDecks {
       if (this.crowdDropEndsAt !== endsAt) return;
       this.crowdDropStartsAt = undefined;
       this.crowdDropEndsAt = undefined;
-      this.applyMix();
+      if (overlayOnly) {
+        void this.context.suspend();
+      } else {
+        this.applyMix();
+      }
     }, Math.max(0, (endsAt - this.context.currentTime) * 1_000));
     return true;
+  }
+
+  public async armCrowdDropOverlay(drop: CrowdDropArmedEvent, onStarted: (startsAtMilliseconds: number) => void): Promise<boolean> {
+    if (!this.supportsCrowdDrop() || this.activeDeck === undefined) {
+      return false;
+    }
+
+    const now = this.context.currentTime;
+    this.activeDeck.gain.gain.cancelScheduledValues(now);
+    this.activeDeck.gain.gain.setValueAtTime(0.001, now);
+    await this.context.resume();
+    return this.armCrowdDrop(drop, onStarted, true);
   }
 
   public stop(): void {

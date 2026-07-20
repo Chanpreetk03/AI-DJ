@@ -94,6 +94,14 @@ public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapp
         }
     }
 
+    public CrowdDropEvent? GetActiveCrowdDrop()
+    {
+        lock (sync)
+        {
+            return crowdDrop.ActiveDrop;
+        }
+    }
+
     public long CrowdDropCooldownRemainingMilliseconds()
     {
         lock (sync)

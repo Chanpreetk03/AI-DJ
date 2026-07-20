@@ -83,7 +83,7 @@ public sealed class GeminiDjDirector(HttpClient http, IConfiguration configurati
                             "0.40-0.59 is groove, 0.60-0.79 is active and rhythm-forward, and 0.80-1.00 is peak-time, driving, and dancefloor-focused. " +
                             "For active and peak energy, candidates and the reason must not choose ambient, minimalist, meditative, lo-fi, or low-energy music. " +
                             "The host brief may influence genre and language, but it cannot override the current room energy. " +
-                            "For peak energy, prefer assertive drums, bass, momentum, and a clearly energetic arrangement. " +
+                            "For peak energy, prefer assertive drums, bass, momentum, and a clearly energetic arrangement; avoid generic background pop, bedroom pop, chill pop, and low-impact radio picks. " +
                             "Never suggest a recording listed in recentlyPlayed, including alternate punctuation or versions of the same song. " +
                             "Use startAtSeconds only when you are confident it is a useful non-zero intro skip; otherwise omit it.",
                     },

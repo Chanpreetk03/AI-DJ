@@ -37,6 +37,11 @@ public sealed class DjHub(RoomRegistry rooms, RoomAccessService access) : Hub
         var snapshot = membership.Room.GetSnapshot();
         await Clients.Caller.SendAsync("MusicParamsUpdated", snapshot.Parameters);
         await Clients.Caller.SendAsync("RoomStateUpdated", snapshot.State);
+        var activeDrop = membership.Room.GetActiveCrowdDrop();
+        if (activeDrop is not null)
+        {
+            await Clients.Caller.SendAsync("CrowdDropArmed", activeDrop);
+        }
         await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("StatusUpdated", membership.Room.GetStatus());
     }
 

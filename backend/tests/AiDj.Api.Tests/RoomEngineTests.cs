@@ -196,5 +196,16 @@ public sealed class RoomEngineTests
         Assert.NotNull(drops.TryManualTrigger(quiet, 46_000));
     }
 
+    [Fact]
+    public void Crowd_drop_stays_available_for_rejoining_clients_until_it_starts()
+    {
+        var drops = new CrowdDropController();
+        var drop = drops.TryManualTrigger(new RoomState(0.5, 1, 1), 1_000)!;
+
+        Assert.Equal(drop, drops.ActiveDrop);
+        Assert.NotNull(drops.TryStart(drop.Id, 4_000));
+        Assert.Null(drops.ActiveDrop);
+    }
+
     private static VibeVector Vibe(double energy) => new(energy, energy, energy, energy * 4, 1_000);
 }

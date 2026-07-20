@@ -17,6 +17,8 @@ public sealed class CrowdDropController
     private bool isArmed = true;
     private CrowdDropEvent? activeDrop;
 
+    public CrowdDropEvent? ActiveDrop => activeDrop;
+
     public CrowdDropEvent? Observe(RoomState state, long nowMilliseconds)
     {
         if (!Qualifies(state))
@@ -47,13 +49,15 @@ public sealed class CrowdDropController
             return null;
         }
 
-        return new CrowdDropStartedEvent(
+        var started = new CrowdDropStartedEvent(
             activeDrop.Id,
             activeDrop.Source,
             activeDrop.Contributors,
             activeDrop.Energy,
             activeDrop.Coherence,
             startsAtMilliseconds);
+        activeDrop = null;
+        return started;
     }
 
     public long RemainingCooldownMilliseconds(long nowMilliseconds) => lastTriggeredAt is null

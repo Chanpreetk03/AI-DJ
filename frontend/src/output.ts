@@ -502,8 +502,11 @@ async function resolveAndPlayDirective(directive: DjDirective, planVersion: numb
       if (provider === "spotify") {
         const matches = await spotify.searchTracks(`track:${candidate.title} artist:${candidate.artist}`);
         if (!isCurrentGeminiPlan(planVersion)) return undefined;
-        const match = matches.find(track => track.isPlayable && sameIdentity(track.title, track.artists.join(" "), candidate)) ?? matches.find(track => track.isPlayable);
-        if (match === undefined) continue;
+        const match = matches.find(track => track.isPlayable && sameIdentity(track.title, track.artists.join(" "), candidate));
+        if (match === undefined) {
+          failures.push(`${candidate.title}: Spotify did not return the requested recording`);
+          continue;
+        }
         await playSpotifyExclusively(match.uri);
         activeGeminiProvider = provider;
         return { ...candidate, durationMilliseconds: match.durationMilliseconds };
@@ -511,8 +514,11 @@ async function resolveAndPlayDirective(directive: DjDirective, planVersion: numb
 
       const matches = await youtubeMusic.searchTracks(`${candidate.title} ${candidate.artist}`);
       if (!isCurrentGeminiPlan(planVersion)) return undefined;
-      const match = matches.find(track => sameIdentity(track.title, track.artists.join(" "), candidate)) ?? matches[0];
-      if (match === undefined) continue;
+      const match = matches.find(track => sameIdentity(track.title, track.artists.join(" "), candidate));
+      if (match === undefined) {
+        failures.push(`${candidate.title}: YouTube Music did not return the requested recording`);
+        continue;
+      }
       await playYoutubeMusicExclusively(match.videoId, candidate.startAtSeconds ?? undefined);
       activeGeminiProvider = provider;
       return { ...candidate, durationMilliseconds: match.durationMilliseconds };
@@ -723,15 +729,27 @@ connection.on("RoomStateUpdated", (state: RoomState) => {
 connection.on("CrowdDropArmed", (drop: CrowdDropArmedEvent) => {
   const localDrop = localizeCrowdDropCountdown(drop);
   announceCrowdDropArmed(localDrop);
-  if (!stemPack.armCrowdDrop(localDrop, startsAtMilliseconds => {
-    void connection.invoke("ConfirmCrowdDropStarted", localDrop.id, startsAtMilliseconds);
-  })) {
-    djDecision.textContent = "Crowd Drop visuals are live. Spotify and YouTube playback cannot expose local stems for the musical burst.";
-    window.setTimeout(() => {
-      void connection.invoke("ConfirmCrowdDropStarted", localDrop.id, Date.now());
-    }, localDrop.countdownDurationMilliseconds);
-  }
+  void armOutputCrowdDrop(localDrop);
 });
+
+async function armOutputCrowdDrop(drop: CrowdDropArmedEvent): Promise<void> {
+  const confirmStarted = (startsAtMilliseconds: number) => {
+    void connection.invoke("ConfirmCrowdDropStarted", drop.id, startsAtMilliseconds);
+  };
+  const localStemDrop = stemPack.armCrowdDrop(drop, confirmStarted);
+  if (localStemDrop) return;
+
+  const streamingProviderIsPlaying = spotifyOwnsAudio || youtubeMusicOwnsAudio;
+  if (streamingProviderIsPlaying && await stemPack.armCrowdDropOverlay(drop, confirmStarted)) {
+    djDecision.textContent = "Crowd Drop: local drums, bass, and melody are layering over the streaming track.";
+    return;
+  }
+
+  djDecision.textContent = "Crowd Drop visuals are live. Start local audio once to enable the musical stem burst over streaming playback.";
+  window.setTimeout(() => {
+    void connection.invoke("ConfirmCrowdDropStarted", drop.id, Date.now());
+  }, drop.countdownDurationMilliseconds);
+}
 
 connection.on("CrowdDropStarted", (drop: CrowdDropStartedEvent) => {
   announceCrowdDropStarted(drop);
