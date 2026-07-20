@@ -37,7 +37,7 @@ public sealed class DjHub(RoomRegistry rooms, RoomAccessService access) : Hub
         var snapshot = membership.Room.GetSnapshot();
         await Clients.Caller.SendAsync("MusicParamsUpdated", snapshot.Parameters);
         await Clients.Caller.SendAsync("RoomStateUpdated", snapshot.State);
-        var activeDrop = membership.Room.GetActiveCrowdDrop();
+        var activeDrop = membership.Room.GetReplayableCrowdDrop();
         if (activeDrop is not null)
         {
             await Clients.Caller.SendAsync("CrowdDropArmed", activeDrop);
@@ -80,14 +80,14 @@ public sealed class DjHub(RoomRegistry rooms, RoomAccessService access) : Hub
         return new { accepted = true, cooldownRemainingMilliseconds = 45_000 };
     }
 
-    public async Task ConfirmCrowdDropStarted(string dropId, long startsAtMilliseconds)
+    public async Task ConfirmCrowdDropStarted(string dropId)
     {
         if (!rooms.TryGetMembership(Context.ConnectionId, out var membership) || membership.Role != "output")
         {
             throw new HubException("Only the active output can confirm a Crowd Drop start.");
         }
 
-        var started = membership.Room.TryStartCrowdDrop(dropId, startsAtMilliseconds);
+        var started = membership.Room.TryStartCrowdDrop(dropId);
         if (started is not null)
         {
             await Clients.Group(RoomGroup(membership.RoomId)).SendAsync("CrowdDropStarted", started);

@@ -86,19 +86,19 @@ public sealed class RoomEngine(RoomAggregator aggregator, VibeToMusicMapper mapp
         }
     }
 
-    public CrowdDropStartedEvent? TryStartCrowdDrop(string dropId, long startsAtMilliseconds)
+    public CrowdDropStartedEvent? TryStartCrowdDrop(string dropId)
     {
         lock (sync)
         {
-            return crowdDrop.TryStart(dropId, startsAtMilliseconds);
+            return crowdDrop.TryStart(dropId, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         }
     }
 
-    public CrowdDropEvent? GetActiveCrowdDrop()
+    public CrowdDropEvent? GetReplayableCrowdDrop()
     {
         lock (sync)
         {
-            return crowdDrop.ActiveDrop;
+            return crowdDrop.GetReplayableActiveDrop(DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
         }
     }
 

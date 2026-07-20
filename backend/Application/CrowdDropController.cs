@@ -11,13 +11,12 @@ public sealed class CrowdDropController
     private const long SustainedForMilliseconds = 4_000;
     private const long CooldownMilliseconds = 45_000;
     private const long CountdownMilliseconds = 3_000;
+    private const long StartGraceMilliseconds = 30_000;
 
     private long? qualifyingSince;
     private long? lastTriggeredAt;
     private bool isArmed = true;
     private CrowdDropEvent? activeDrop;
-
-    public CrowdDropEvent? ActiveDrop => activeDrop;
 
     public CrowdDropEvent? Observe(RoomState state, long nowMilliseconds)
     {
@@ -42,10 +41,24 @@ public sealed class CrowdDropController
         return IsCoolingDown(nowMilliseconds) ? null : Trigger("manual", state, nowMilliseconds);
     }
 
-    public CrowdDropStartedEvent? TryStart(string id, long startsAtMilliseconds)
+    public CrowdDropEvent? GetReplayableActiveDrop(long nowMilliseconds) =>
+        activeDrop is not null && nowMilliseconds < activeDrop.CountdownEndsAtMilliseconds ? activeDrop : null;
+
+    public CrowdDropStartedEvent? TryStart(string id, long nowMilliseconds)
     {
         if (activeDrop is null || activeDrop.Id != id)
         {
+            return null;
+        }
+
+        if (nowMilliseconds < activeDrop.CountdownEndsAtMilliseconds)
+        {
+            return null;
+        }
+
+        if (nowMilliseconds > activeDrop.CountdownEndsAtMilliseconds + StartGraceMilliseconds)
+        {
+            activeDrop = null;
             return null;
         }
 
@@ -55,7 +68,7 @@ public sealed class CrowdDropController
             activeDrop.Contributors,
             activeDrop.Energy,
             activeDrop.Coherence,
-            startsAtMilliseconds);
+            nowMilliseconds);
         activeDrop = null;
         return started;
     }

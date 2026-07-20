@@ -734,7 +734,8 @@ connection.on("CrowdDropArmed", (drop: CrowdDropArmedEvent) => {
 
 async function armOutputCrowdDrop(drop: CrowdDropArmedEvent): Promise<void> {
   const confirmStarted = (startsAtMilliseconds: number) => {
-    void connection.invoke("ConfirmCrowdDropStarted", drop.id, startsAtMilliseconds);
+    void startsAtMilliseconds;
+    void connection.invoke("ConfirmCrowdDropStarted", drop.id);
   };
   const localStemDrop = stemPack.armCrowdDrop(drop, confirmStarted);
   if (localStemDrop) return;

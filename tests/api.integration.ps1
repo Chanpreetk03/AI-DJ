@@ -8,7 +8,7 @@ $stderrPath = Join-Path $env:TEMP "ai-dj-api-integration-$port.err.log"
 $process = $null
 
 try {
-  $process = Start-Process dotnet -ArgumentList @("run", "--project", $project, "--no-build", "--no-launch-profile", "--urls", $baseUrl) -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+  $process = Start-Process dotnet -ArgumentList @("run", "--project", $project, "--no-launch-profile", "--urls", $baseUrl) -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
   $ready = $false
   for ($attempt = 0; $attempt -lt 40; $attempt++) {
     try {
